@@ -705,6 +705,7 @@ export default function App() {
         )}
       </main>
       <footer className="app-footer">
+        <a href="/?animation-lab">Comparar animaciones · Quaternius</a>
         <span>
           ECLIPSE ARENA <b>/</b> SYSTEM ONE
         </span>

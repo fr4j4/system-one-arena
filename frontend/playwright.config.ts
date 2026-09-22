@@ -13,6 +13,11 @@ export default defineConfig({
     command: "../.venv/bin/uvicorn arena.app:app --host 127.0.0.1 --port 8013",
     url: "http://127.0.0.1:8013/api/health",
     reuseExistingServer: false,
-    env: { ARENA_FRONTEND_DIR: "dist", COMBAT_DATA_DIR: "../data/combat-e2e", LAYA_ENABLED: "false" },
+    env: {
+      PYTHONPATH: "../backend",
+      ARENA_FRONTEND_DIR: "dist",
+      COMBAT_DATA_DIR: "../data/combat-e2e",
+      LAYA_ENABLED: "false",
+    },
   },
 });

@@ -11,8 +11,13 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./style.css";
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+if (new URLSearchParams(location.search).has("animation-lab")) {
+  import("./combat/animationLab").then(({ mountAnimationLab }) =>
+    mountAnimationLab(document.getElementById("root")!),
+  );
+} else
+  createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );

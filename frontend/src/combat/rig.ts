@@ -11,9 +11,40 @@ export function preloadFighter(id: string) {
   }
   return p;
 }
-export async function createRig(id: string) {
-  const asset = await preloadFighter(id),
-    model = clone(asset.scene),
+export type AnimationSource = "quaternius" | "original";
+export const animationSource: AnimationSource =
+  new URLSearchParams(location.search).get("animations") === "original"
+    ? "original"
+    : "quaternius";
+let imported: Promise<THREE.AnimationClip[]> | undefined;
+export function preloadAnimations() {
+  if (!imported) {
+    imported = fetch("/assets/combat/quaternius/animations.json").then(
+      async (response) => {
+        if (!response.ok)
+          throw new Error(`Animaciones Quaternius: HTTP ${response.status}`);
+        const data = await response.json();
+        return data.clips.map(
+          (clip: Parameters<typeof THREE.AnimationClip.parse>[0]) =>
+            THREE.AnimationClip.parse(clip),
+        ) as THREE.AnimationClip[];
+      },
+    );
+    imported.catch(() => {
+      imported = undefined;
+    });
+  }
+  return imported;
+}
+export async function createRig(
+  id: string,
+  source: AnimationSource = animationSource,
+) {
+  const [asset, replacements] = await Promise.all([
+    preloadFighter(id),
+    source === "quaternius" ? preloadAnimations() : Promise.resolve([]),
+  ]);
+  const model = clone(asset.scene),
     root = new THREE.Group();
   root.add(model);
   const ramp = new THREE.DataTexture(
@@ -54,8 +85,10 @@ export async function createRig(id: string) {
     mesh.parent?.add(outline);
   }
   const mixer = new THREE.AnimationMixer(model);
+  const clips = new Map(asset.animations.map((clip) => [clip.name, clip]));
+  replacements.forEach((clip) => clips.set(clip.name, clip));
   const actions = new Map(
-    asset.animations.map((clip) => [clip.name, mixer.clipAction(clip)]),
+    [...clips].map(([name, clip]) => [name, mixer.clipAction(clip)]),
   );
   let active: THREE.AnimationAction | undefined;
   let activeName = "";
@@ -68,6 +101,11 @@ export async function createRig(id: string) {
     mixer,
     ramp,
     outlineMat,
+    clipNames: [...clips.keys()],
+    importedNames: replacements.map((clip) => clip.name),
+    duration(name: string) {
+      return clips.get(name)?.duration ?? 1;
+    },
     animate(name: string, seconds: number, progress?: number) {
       const action = actions.get(name) ?? actions.get("idle")!;
       if (name !== activeName) {

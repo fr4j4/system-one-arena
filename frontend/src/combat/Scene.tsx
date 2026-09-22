@@ -111,7 +111,7 @@ export default memo(function Scene({
         gl.domElement.remove();
       };
       cleanup = cleanupBase;
-      const rigs = await Promise.all(characters.map(createRig));
+      const rigs = await Promise.all(characters.map((id) => createRig(id)));
       if (disposed) {
         rigs.forEach((r) => r.dispose());
         cleanupBase();

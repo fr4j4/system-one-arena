@@ -1,6 +1,6 @@
 # Recursos y procedencia
 
-Todo el contenido de combate fue creado para este repositorio. No incluye personajes, música, logotipos ni recursos extraídos de Mortal Kombat o Dragon Ball.
+Las mallas, escenarios y efectos de combate fueron creados para este repositorio. Esta rama experimental incorpora además animaciones CC0 de Quaternius; ver [QUATERNIUS.md](QUATERNIUS.md). No incluye personajes, música, logotipos ni recursos extraídos de Mortal Kombat o Dragon Ball.
 
 | Recurso | Fuente | Licencia / uso |
 |---|---|---|
@@ -11,6 +11,7 @@ Todo el contenido de combate fue creado para este repositorio. No incluye person
 | Efectos y música | Síntesis Web Audio en `audio.ts` | Composiciones originales, sin samples externos |
 | Barlow Condensed, DM Sans, IBM Plex Mono | Paquetes `@fontsource/*` fijados en package-lock | SIL Open Font License; licencias incluidas en paquetes |
 | Iconos de interfaz | lucide-react | ISC |
+| Clips Quaternius Standard | Fuente GLB conservada en `assets/sources/quaternius/`, conversión offline | CC0-1.0; licencia incluida |
 | Renderizador | Three.js | MIT |
 
 Los GLB son archivos binarios glTF2 con skin, inverse bind matrices y clips quaternion. No requieren CDN ni recursos externos. Cuatro archivos, aproximadamente 0.74 MB cada uno; se precargan sólo los personajes seleccionados, con caché de assets. El generador es determinista y no necesita Blender ni descargas.
