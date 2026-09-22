@@ -1,0 +1,55 @@
+{
+  "errors": [],
+  "renderer": {
+    "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "engine": "three.js r186",
+    "renderer": "combat-three",
+    "fps": "4.7",
+    "drawCalls": "57",
+    "geometries": "33"
+  },
+  "samples": [
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "3.3",
+      "drawCalls": "57",
+      "geometries": "33"
+    },
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "3.7",
+      "drawCalls": "57",
+      "geometries": "33"
+    },
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "2.5",
+      "drawCalls": "57",
+      "geometries": "33"
+    },
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "2.9",
+      "drawCalls": "57",
+      "geometries": "27"
+    },
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "4.4",
+      "drawCalls": "57",
+      "geometries": "33"
+    },
+    {
+      "engine": "three.js r186",
+      "renderer": "combat-three",
+      "fps": "3.7",
+      "drawCalls": "57",
+      "geometries": "33"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "first_segment": {
+    "termination": "SIGTERM (exit 143)",
+    "last_sample": {
+      "seconds": 1391,
+      "tick": 83441,
+      "status": "running",
+      "rss_kb": 64348,
+      "counts": [
+        {
+          "accepted": 3105,
+          "completed": 3105,
+          "applied": 3105
+        },
+        {
+          "accepted": 3106,
+          "completed": 3106,
+          "applied": 3104,
+          "rejected": 2
+        }
+      ]
+    },
+    "peak_coordinator_rss_kb": 67124
+  },
+  "second_segment": {
+    "status": "completed",
+    "active_seconds": 480.0,
+    "tick": 28788,
+    "players": [
+      {
+        "counts": {
+          "accepted": 1025,
+          "completed": 1025,
+          "applied": 1025
+        },
+        "latency": {
+          "count": 1025,
+          "p50": 0.169,
+          "p95": 2.122,
+          "p99": 7.095,
+          "mean": 0.534
+        }
+      },
+      {
+        "counts": {
+          "accepted": 1025,
+          "completed": 1025,
+          "applied": 1025
+        },
+        "latency": {
+          "count": 1025,
+          "p50": 0.431,
+          "p95": 2.566,
+          "p99": 7.188,
+          "mean": 0.846
+        }
+      }
+    ],
+    "peak_coordinator_rss_kb": 63548
+  },
+  "combined_verified_active_seconds": 1871.0,
+  "continuous_30_minutes": false
+}

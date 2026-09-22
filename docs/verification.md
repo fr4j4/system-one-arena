@@ -18,14 +18,14 @@ Laya multilingual: pesos reales, CPU, preflight8 estados,12 respuestas válidas 
 
 ## Gráficos y recursos
 
-Intel Core i5-9400F,6 CPUs lógicas; backend Python3.11. Chromium headless usó **ANGLE SwiftShader por software**. Antes del batching estático midió aproximadamente2–7FPS a1440px,107 draw calls; por tanto **no se ha validado el objetivo de60FPS con GPU**. La escena agrupa geometría estática por material y limita partículas/pixel ratio. Las medidas de Chromium por software no predicen el rendimiento del navegador con aceleración de hardware.
+Intel Core i5-9400F,6 CPUs lógicas; backend Python3.11. Chromium headless usó **ANGLE SwiftShader por software**. Antes del batching estático midió aproximadamente2–7FPS a1440px,107 draw calls; por tanto **no se ha validado el objetivo de60FPS con GPU**. La escena agrupa geometría estática por material y limita partículas/pixel ratio. Después de agrupar el escenario:57 draw calls y27–33 geometrías; auditoría sin errores JS,2.5–4.7FPS por software. Las medidas de Chromium por software no predicen el rendimiento del navegador con aceleración de hardware.
 
-Cambios repetidos de personaje mantuvieron una sola escena/canvas y77–83 geometrías antes de agrupar el escenario; no hubo errores JavaScript en la auditoría visual. Los cuatro GLB pesan2.9MiB en total (aprox.0.74MB cada uno), sin texturas/CDN externos. Incluyen18 huesos y25 clips cada uno. Las capturas desktop/móvil y de remate están en `docs/screenshots/`.
+Cambios repetidos de personaje mantuvieron una sola escena/canvas y77–83 geometrías antes de agrupar el escenario; no hubo errores JavaScript en la auditoría visual. Los cuatro GLB pesan2.9MiB en total (aprox.0.74MB cada uno), sin texturas/CDN externos. Incluyen18 huesos y25 clips cada uno. Las capturas desktop/móvil y de remate están en `docs/screenshots/`. `eclipse-demo.webm` graba un combate local real de referencia en Chromium por software (calidad baja), incluida su detención.
 
 La música y efectos originales usan Web Audio, paneo horizontal y variación de intensidad con la fase de combate. No se realizó una evaluación auditiva subjetiva del balance sonoro.
 
 ## Estabilidad sostenida
 
-El primer tramo de referencia/referencia mantuvo unos60 ticks/s hasta1391s, con3105/3104 acciones aplicadas. Su proceso terminó conSIGTERM (exit143), sin excepción del motor registrada. No se declara una ejecución continua de30min. Se ejecuta un segundo tramo de480s para verificar tiempo acumulado y reinicio; los resultados finales se registran junto con la evidencia.
+El primer tramo de referencia/referencia mantuvo unos60 ticks/s hasta1391s, con3105/3104 acciones aplicadas. Su proceso terminó conSIGTERM (exit143), sin excepción del motor registrada. No se declara una ejecución continua de30min. El segundo tramo completó480s activos (aprox.28800 ticks) sin error. Total verificado:1871s activos,31min11s, en dos tramos. El pico RSS del coordinador se registra en `evidence/soak.json`; incluye procesos separados de prueba, no una medición de fuga del navegador. No se declara una ejecución continua de30min.
 
 Las credenciales reales permanecen en `.env` ignorado. `providers.local.json` también está excluido de Git y Docker. No se probaron despliegue Docker ni multijugador remoto; la app es local.
