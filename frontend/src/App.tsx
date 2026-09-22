@@ -1,934 +1,726 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity,
-  ArrowUpRight,
-  BarChart3,
-  Check,
-  ChevronRight,
-  CircleHelp,
-  Database,
-  FlaskConical,
-  GitBranch,
-  History as HistoryIcon,
-  Layers3,
-  Play,
-  Plus,
   Settings2,
-  SlidersHorizontal,
-  Terminal,
-  X,
-  Zap,
+  Play,
+  Pause,
+  Square,
+  ChevronDown,
+  RotateCcw,
 } from "lucide-react";
+import Scene from "./combat/Scene";
+import { Hud } from "./combat/Hud";
+import { Inspector } from "./combat/Inspector";
+import { SettingsPanel } from "./combat/SettingsPanel";
+import { Laboratory } from "./combat/Laboratory";
+import { Replay } from "./combat/Replay";
+import { CombatAudio } from "./combat/audio";
+import { useMatch } from "./combat/useMatch";
+import { useControls } from "./combat/useControls";
 import {
   api,
-  post,
-  type Graph,
-  type Provider,
-  type Run,
-  type RunConfig,
-  type Scenario,
-} from "./types";
-import RunPanel from "./RunPanel";
-import GameCanvas from "./GameCanvas";
-import ComparisonTable from "./ComparisonTable";
-const WorkflowEditor = lazy(() => import("./WorkflowEditor"));
-const Benchmarks = lazy(() => import("./Benchmarks"));
-const Datasets = lazy(() => import("./Datasets"));
-const History = lazy(() => import("./History"));
-const NAV = [
-  ["arena", "Arena", FlaskConical],
-  ["benchmarks", "Experimentos", BarChart3],
-  ["datasets", "Datasets", Database],
-  ["workflow", "Árboles", GitBranch],
-  ["history", "Historial", HistoryIcon],
-  ["providers", "Proveedores", Layers3],
-] as const;
-const ICONS: Record<string, string> = {
-  "tic-tac-toe": "╳",
-  snake: "↱",
-  pong: "Ⅱ",
-  tetris: "▟",
-  fighting: "⚔",
-  "space-invaders": "⌁",
-  tickets: "▤",
-  email: "@",
-  spam: "⊘",
-  moderation: "◇",
-  events: "∿",
-  hierarchy: "⑂",
-  incidents: "!",
-  routing: "↗",
-  workflow: "⋈",
+  DEFAULT_CONFIG,
+  DEFAULT_KEYS,
+  DEFAULT_GAMEPAD,
+  type Catalog,
+  type Config,
+  type Match,
+  type Profile,
+  type Settings,
+} from "./combat/types";
+const initialSettings = (): Settings => {
+  const defaults: Settings = {
+    quality: "high",
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    reducedFlash: false,
+    shake: true,
+    master: 0.5,
+    music: 0.16,
+    effects: 0.7,
+    bindings: { ...DEFAULT_KEYS },
+    gamepad: { ...DEFAULT_GAMEPAD },
+  };
+  try {
+    return {
+      ...defaults,
+      ...JSON.parse(localStorage.getItem("eclipse-settings-v2") ?? "{}"),
+    };
+  } catch {
+    return defaults;
+  }
 };
 export default function App() {
-  const [page, setPage] = useState("arena"),
-    [scenarios, setScenarios] = useState<Scenario[]>([]),
-    [providers, setProviders] = useState<Provider[]>([]),
-    [scenario, setScenario] = useState("snake"),
-    [provider, setProvider] = useState("simulated"),
-    [compare, setCompare] = useState(""),
-    [runs, setRuns] = useState<Run[]>([]),
-    [graph, setGraph] = useState<Graph>(),
-    [datasets, setDatasets] = useState<Record<string, any[]>>({}),
-    [preview, setPreview] = useState<any>(),
+  const [catalog, setCatalog] = useState<Catalog | null>(null),
+    [profiles, setProfiles] = useState<Profile[]>([]),
+    [config, setConfig] = useState<Config>(DEFAULT_CONFIG),
+    [tab, setTab] = useState("arena"),
+    [settings, setSettings] = useState(initialSettings),
+    [showSettings, setShowSettings] = useState(false),
+    [ready, setReady] = useState(false),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(false),
-    [advanced, setAdvanced] = useState(false),
-    [category, setCategory] = useState("game"),
-    [health, setHealth] = useState<any>();
-  const [mode, setMode] = useState("realtime"),
-    [seed, setSeed] = useState(42),
-    [hz, setHz] = useState(10),
-    [budget, setBudget] = useState(1000),
-    [age, setAge] = useState(1500),
-    [speed, setSpeed] = useState(0.5),
-    [representation, setRepresentation] = useState("direct"),
-    [controller, setController] = useState("model"),
-    [seconds, setSeconds] = useState(180),
-    [tetris, setTetris] = useState("movement"),
-    [hierarchy, setHierarchy] = useState("tree");
-  const [player2, setPlayer2] = useState("reference"),
-    [bestOf, setBestOf] = useState(3),
-    [roundSeconds, setRoundSeconds] = useState(45);
-  const [sampleSize, setSampleSize] = useState(25),
-    [sampling, setSampling] = useState("random"),
-    [difficulty, setDifficulty] = useState("all"),
-    [available, setAvailable] = useState<any[]>([]),
-    [experience, setExperience] = useState("play"),
-    [opponent, setOpponent] = useState("minimax");
+    [inspector, setInspector] = useState(true);
   const onError = useCallback(
     (s: string) => setError(s.replace(/^Error: /, "")),
     [],
   );
+  const game = useMatch(onError);
+  const live = useRef(game);
+  live.current = game;
+  const [audio] = useState(() => new CombatAudio(settings));
+  const active =
+    !!game.match &&
+    ["preparing", "running", "paused"].includes(game.match.status);
+  const human = config.players.some((p) => p.controller === "human");
+  const rendererError = useCallback(
+    (s: string) => {
+      onError(s);
+      if (live.current.match?.status === "running")
+        void live.current.command("pause");
+    },
+    [onError],
+  );
+  useControls(
+    game.match?.status === "running" && !showSettings,
+    settings,
+    game.input,
+    game.frameRef,
+    () => void game.command("pause"),
+  );
   useEffect(() => {
+    audio.configure(settings);
+    localStorage.setItem("eclipse-settings-v2", JSON.stringify(settings));
+  }, [audio, settings]);
+  useEffect(() => {
+    let alive = true;
     Promise.all([
-      api<Scenario[]>("/scenarios"),
-      api<Provider[]>("/providers"),
-      api<Graph>("/graphs/support"),
-      api("/health"),
+      api<Catalog>("/catalog"),
+      api<Profile[]>("/profiles"),
+      api<Match[]>("/matches"),
     ])
-      .then(([s, p, g, h]) => {
-        setScenarios(s);
-        setProviders(p);
-        setGraph(g);
-        setHealth(h);
+      .then(([c, p, m]) => {
+        if (!alive) return;
+        setCatalog(c);
+        setProfiles(p);
+        const running = m.find((x) =>
+          ["preparing", "running", "paused"].includes(x.status),
+        );
+        if (running) {
+          setConfig(running.config);
+          live.current.attach(running);
+        }
       })
-      .catch((e) =>
-        onError("No se pudo conectar con el backend. " + String(e)),
-      );
+      .catch((e) => onError(String(e)));
+    return () => {
+      alive = false;
+    };
   }, [onError]);
   useEffect(() => {
-    api("/preview/" + scenario)
-      .then(setPreview)
-      .catch(() => setPreview(undefined));
-  }, [scenario]);
-  const chosen = scenarios.find((s) => s.id === scenario);
-  const execution = chosen?.execution ?? "realtime";
+    if (game.match) return;
+    let alive = true;
+    api("/preview", config)
+      .then((s) => {
+        if (alive) game.preview(s);
+      })
+      .catch((e) => onError(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [config, game.match, game.preview, onError]);
   useEffect(() => {
-    if (chosen?.kind === "business")
-      api<any[]>("/fixtures/" + scenario)
-        .then(setAvailable)
-        .catch((e) => onError(String(e)));
-    else setAvailable([]);
-  }, [scenario, chosen?.kind, onError]);
-  const sourceRows = datasets[scenario] ?? available;
-  const eligible = sourceRows.filter(
-    (r) => difficulty === "all" || r.metadata?.difficulty === difficulty,
-  ).length;
+    if (game.match?.status === "running") audio.startMusic();
+    else audio.stopMusic();
+    return () => audio.stopMusic();
+  }, [audio, game.match?.status]);
+  const change = (next: Config) => {
+    if (active) return;
+    game.clear();
+    setConfig(next);
+  };
   const start = async () => {
-    setLoading(true);
+    setBusy(true);
     setError("");
     try {
-      const active = await api<Run[]>("/runs");
-      for (const r of active.filter((r) =>
-        ["running", "paused", "preparing"].includes(r.status),
-      )) {
-        await post("/runs/" + r.id + "/control", { command: "stop" });
-      }
-      const config: RunConfig = {
-        scenario,
-        provider,
-        player2_provider: player2,
-        best_of: bestOf,
-        round_seconds: roundSeconds,
-        mode: execution === "turns" ? mode : "realtime",
-        seed,
-        decision_hz: hz,
-        budget_ms: budget,
-        max_state_age_ms: age,
-        speed:
-          execution === "realtime"
-            ? experience === "evaluate"
-              ? 1
-              : speed
-            : 1,
-        representation,
-        controller:
-          execution === "batch" || scenario === "fighting"
-            ? "model"
-            : controller,
-        max_seconds:
-          scenario === "fighting"
-            ? Math.min(
-                3600,
-                Math.ceil(
-                  ((roundSeconds + 4) * (bestOf + 2)) /
-                    (experience === "evaluate" ? 1 : speed),
-                ) + 15,
-              )
-            : seconds,
-        sample_size: sampleSize || null,
-        sampling,
-        difficulty,
-        options: {
-          tetris_control: tetris,
-          hierarchy_mode: hierarchy,
-          experience,
-          opponent,
-        },
-        ...(datasets[scenario] ? { dataset: datasets[scenario] } : {}),
-        ...(scenario === "workflow" ? { graph } : {}),
-      };
-      const first = await post<Run>("/runs", config);
-      setRuns([first]);
-      if (compare && scenario !== "fighting") {
-        const second = await post<Run>("/runs", {
-          ...config,
-          provider: compare,
-        });
-        setRuns([first, second]);
-      }
+      await audio.unlock();
+      const m = await api<Match>("/matches", config);
+      game.attach(m);
     } catch (e) {
       onError(String(e));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
-  const selectScenario = async (id: string) => {
-    try {
-      for (const run of runs) {
-        const current = await api<Run>("/runs/" + run.id);
-        if (["running", "paused", "preparing"].includes(current.status))
-          await post("/runs/" + run.id + "/control", { command: "stop" });
-      }
-      setScenario(id);
-      setRuns([]);
-    } catch (error) {
-      onError(String(error));
-    }
+  const mode = (value: string) => {
+    const next = structuredClone(config);
+    next.mode = value === "training" ? "training" : "duel";
+    if (value === "human" || value === "training") {
+      next.players[0].controller = "human";
+      if (next.players[1].controller === "human")
+        next.players[1] = {
+          ...next.players[1],
+          controller: "baseline",
+          model_profile_id: "reference",
+        };
+      if (value === "training")
+        next.players[1] = {
+          ...next.players[1],
+          controller: "baseline",
+          model_profile_id: "dummy",
+        };
+    } else
+      next.players = next.players.map((p) =>
+        p.controller === "human"
+          ? { ...p, controller: "baseline", model_profile_id: "reference" }
+          : p,
+      );
+    change(next);
   };
+  const configured = config.players.every(
+    (p) =>
+      p.controller === "human" ||
+      profiles.find((m) => m.id === p.model_profile_id)?.configured,
+  );
+  if (!catalog)
+    return (
+      <main className="boot-screen">
+        <span className="brand-symbol">◒</span>
+        <h1>ECLIPSE ARENA</h1>
+        <p>{error || "Conectando con la arena…"}</p>
+        {error && <button onClick={() => location.reload()}>Reintentar</button>}
+      </main>
+    );
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <>
+      <header className="app-header">
         <a
-          className="brand"
           href="#"
+          className="brand"
           onClick={(e) => {
             e.preventDefault();
-            setPage("arena");
+            setTab("arena");
           }}
         >
-          <span className="brand-mark">
-            <i />
-            <i />
-            <i />
-          </span>
+          <span className="brand-symbol">◒</span>
           <span>
-            SYSTEM ONE<small>ARENA</small>
+            ECLIPSE <b>ARENA</b>
+            <small>SYSTEM ONE / COMBAT LAB</small>
           </span>
         </a>
-        <div className="workspace-label">
-          DECISION LAB <span>v0.1</span>
-        </div>
         <nav aria-label="Navegación principal">
-          {NAV.map(([id, label, Icon]) => (
+          {[
+            ["arena", "Arena"],
+            ["lab", "Laboratorio"],
+            ["replays", "Replays"],
+          ].map(([id, label]) => (
             <button
               key={id}
-              className={page === id ? "active" : ""}
-              onClick={() => setPage(id)}
+              className={tab === id ? "selected" : ""}
+              onClick={() => {
+                if (human && active && id === "replays")
+                  void game.command("pause");
+                setTab(id);
+              }}
             >
-              <Icon size={18} />
-              <span>{label}</span>
-              {page === id ? <ChevronRight size={14} /> : null}
+              {label}
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <div>
-            <span className={"connection-dot " + (health ? "connected" : "")} />
-            {health ? "Backend conectado" : "Conectando…"}
-          </div>
-          <small>Local-first · Model-agnostic</small>
-          <a
-            href="https://github.com/fr4j4/system-one-arena"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Repositorio <ArrowUpRight size={12} />
-          </a>
-        </div>
-      </aside>
-      <main>
-        <header className="topbar">
-          <div className="breadcrumb">
-            Laboratorio <ChevronRight size={13} />
-            <strong>{NAV.find(([id]) => id === page)?.[1]}</strong>
-          </div>
-          <div className="topbar-meta">
-            <span className="version-badge">PROTOCOL 1.0</span>
-            <span>Estados → decisiones → acciones</span>
-            <CircleHelp size={17} />
-          </div>
-        </header>
-        {error ? (
-          <div role="alert" className="error-banner">
-            <span>{error}</span>
-            <button aria-label="Cerrar error" onClick={() => setError("")}>
-              <X size={17} />
+        <div className="header-tools">
+          {active && tab === "replays" && (
+            <button
+              className="stop-button"
+              onClick={() => void game.command("stop")}
+            >
+              Detener partida activa
             </button>
-          </div>
-        ) : null}
-        {page === "arena" ? (
-          <div className="arena-page">
-            <div className="page-heading">
+          )}
+          <span className="connection">
+            <i />
+            {active ? "PARTIDA ACTIVA" : "ARENA DISPONIBLE"}
+          </span>
+          <button
+            className="icon-button"
+            aria-label="Ajustes"
+            onClick={() => {
+              if (human && active) void game.command("pause");
+              setShowSettings(true);
+            }}
+          >
+            <Settings2 size={19} />
+          </button>
+        </div>
+      </header>
+      {error && (
+        <div className="error-banner global-error" role="alert">
+          <span>{error}</span>
+          <button onClick={() => setError("")} aria-label="Cerrar error">
+            ✕
+          </button>
+        </div>
+      )}
+      <main className="main-shell">
+        {tab === "replays" ? (
+          <Replay
+            catalog={catalog}
+            settings={settings}
+            audio={audio}
+            onError={onError}
+          />
+        ) : (
+          <>
+            <div className="page-intro">
               <div>
-                <span className="eyebrow">
-                  <Activity size={13} /> OBSERVA CADA DECISIÓN
-                </span>
-                <h1>La inteligencia, en acción.</h1>
-                <p>
-                  Elige un entorno. Conecta un modelo. Mira qué decide y cuánto
-                  tarda.
-                </p>
+                <span className="eyebrow">INTELIGENCIA BAJO PRESIÓN</span>
+                <h1>
+                  La próxima decisión
+                  <br className="mobile-break" /> cambia el combate.
+                </h1>
               </div>
-              <button
-                className="quiet-button"
-                onClick={() => setPage("benchmarks")}
-              >
-                <BarChart3 size={16} /> Comparación controlada{" "}
-                <ArrowUpRight size={14} />
-              </button>
-            </div>
-            <div className="scenario-heading">
-              <div className="segmented">
-                <button
-                  className={category === "game" ? "active" : ""}
-                  onClick={() => setCategory("game")}
-                >
-                  Juegos <span>6</span>
-                </button>
-                <button
-                  className={category === "business" ? "active" : ""}
-                  onClick={() => setCategory("business")}
-                >
-                  Decisiones <span>9</span>
-                </button>
-              </div>
-              <span className="muted">
-                Estados estructurados · sin visión artificial
-              </span>
-            </div>
-            <div className="scenario-grid">
-              {scenarios
-                .filter((s) => s.kind === category)
-                .map((s) => (
+              <div className="mode-switch segmented">
+                {[
+                  ["models", "Modelo vs modelo"],
+                  ["human", "Jugar"],
+                  ["training", "Entrenar"],
+                ].map(([id, label]) => (
                   <button
-                    key={s.id}
+                    key={id}
+                    disabled={active}
                     className={
-                      "scenario-card " + (scenario === s.id ? "selected" : "")
+                      (config.mode === "training"
+                        ? "training"
+                        : human
+                          ? "human"
+                          : "models") === id
+                        ? "selected"
+                        : ""
                     }
-                    onClick={() => selectScenario(s.id)}
+                    onClick={() => mode(id)}
                   >
-                    <span className="scenario-icon">{ICONS[s.id]}</span>
-                    <strong>{s.name}</strong>
-                    <small>{s.category}</small>
-                    {scenario === s.id ? (
-                      <Check size={13} className="scenario-check" />
-                    ) : null}
+                    {label}
                   </button>
                 ))}
-            </div>
-            <section className="experiment-config">
-              <div className="config-title">
-                <span>
-                  <SlidersHorizontal size={16} /> Configuración del experimento
-                </span>
-                <button
-                  onClick={() => setAdvanced(!advanced)}
-                  aria-expanded={advanced}
-                >
-                  <Settings2 size={14} />
-                  {advanced ? "Menos opciones" : "Avanzado"}
-                </button>
               </div>
-              <div className="config-row">
+            </div>
+            <section
+              className="versus-setup"
+              aria-label="Seleccionar jugadores"
+            >
+              {config.players.map((slot, i) => (
+                <div
+                  className={"player-select player-" + i}
+                  key={i}
+                  style={
+                    {
+                      "--fighter": catalog.fighters.find(
+                        (c) => c.id === slot.fighter_id,
+                      )?.color,
+                    } as React.CSSProperties
+                  }
+                >
+                  <div className="slot-heading">
+                    <span>PLAYER 0{i + 1}</span>
+                    <b>
+                      {
+                        catalog.fighters.find((c) => c.id === slot.fighter_id)
+                          ?.title
+                      }
+                    </b>
+                  </div>
+                  <div className="fighter-picker">
+                    {catalog.fighters.map((c) => (
+                      <button
+                        disabled={active}
+                        key={c.id}
+                        aria-label={`P${i + 1} ${c.name}`}
+                        aria-pressed={slot.fighter_id === c.id}
+                        className={slot.fighter_id === c.id ? "selected" : ""}
+                        style={{ "--color": c.color } as React.CSSProperties}
+                        onClick={() =>
+                          change({
+                            ...config,
+                            players: config.players.map((p, n) =>
+                              n === i ? { ...p, fighter_id: c.id } : p,
+                            ),
+                          })
+                        }
+                      >
+                        <span className={"fighter-emblem emblem-" + c.id}>
+                          {
+                            { ember: "焔", flux: "ϟ", terra: "◆", nyx: "☾" }[
+                              c.id
+                            ]
+                          }
+                        </span>
+                        <span>
+                          <strong>{c.name}</strong>
+                          <small>{c.role}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="controller-select">
+                    <span>CONTROLADOR</span>
+                    <select
+                      aria-label={`Controlador P${i + 1}`}
+                      disabled={active}
+                      value={
+                        slot.controller === "human"
+                          ? "human"
+                          : slot.model_profile_id
+                      }
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        change({
+                          ...config,
+                          players: config.players.map((p, n) =>
+                            n === i
+                              ? {
+                                  ...p,
+                                  controller:
+                                    id === "human"
+                                      ? "human"
+                                      : profiles.find((x) => x.id === id)?.ai
+                                        ? "model"
+                                        : "baseline",
+                                  model_profile_id:
+                                    id === "human" ? "reference" : id,
+                                }
+                              : p,
+                          ),
+                        });
+                      }}
+                    >
+                      <option
+                        value="human"
+                        disabled={config.players.some(
+                          (p, n) => n !== i && p.controller === "human",
+                        )}
+                      >
+                        Tú · teclado / mando
+                      </option>
+                      {profiles.map((p) => (
+                        <option
+                          key={p.id}
+                          value={p.id}
+                          disabled={!p.configured}
+                        >
+                          {p.name}
+
+                          {!p.configured ? " · sin configurar" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {game.match && (
+                    <div className="decision-state" aria-live="polite">
+                      <span
+                        className={
+                          game.match.status === "running" &&
+                          game.match.players[i].pending
+                            ? "thinking"
+                            : ""
+                        }
+                      />
+                      {slot.controller === "human"
+                        ? "Control humano"
+                        : game.match.players[i].error
+                          ? "Error del proveedor"
+                          : game.match.status === "running" &&
+                              game.match.players[i].pending
+                            ? "Procesando decisión…"
+                            : game.match.players[i].last_result?.answers?.action
+                                  ?.value
+                              ? `Última elección: ${catalog.actions[game.match.players[i].last_result.answers.action.value] ?? game.match.players[i].last_result.answers.action.value}`
+                              : "Esperando decisión"}
+                      <em>
+                        {game.match.players[i].latency.p50?.toFixed(0) ?? "—"}{" "}
+                        ms p50
+                      </em>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="versus-seal">VS</div>
+            </section>
+            <section className="arena-stage">
+              <Scene
+                frameRef={game.frameRef}
+                characters={config.players.map((p) => p.fighter_id)}
+                arena={config.arena_id}
+                settings={settings}
+                audio={audio}
+                onReady={setReady}
+                onError={rendererError}
+              />
+              <Hud
+                frame={game.frame}
+                catalog={catalog}
+                match={game.match}
+                input={game.input}
+              />
+            </section>
+            <section className="match-controls">
+              <div className="match-options">
                 <label>
-                  {scenario === "fighting" ? "Player 1 · Ember" : "Proveedor"}
+                  ESCENARIO
                   <select
-                    aria-label={
-                      scenario === "fighting" ? "Modelo Player 1" : "Proveedor"
+                    disabled={active}
+                    value={config.arena_id}
+                    onChange={(e) =>
+                      change({ ...config, arena_id: e.target.value })
                     }
-                    value={provider}
-                    onChange={(e) => setProvider(e.target.value)}
                   >
-                    {providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.id === "simulated"
-                          ? "Simulador · sin IA"
-                          : p.id === "reference"
-                            ? "Referencia · heurística"
-                            : p.id === "random"
-                              ? "Azar · sin IA"
-                              : p.id.toUpperCase()}
-                        {!p.configured ? " · configurar" : ""}
+                    {catalog.arenas.map((a) => (
+                      <option value={a.id} key={a.id}>
+                        {a.name}
                       </option>
                     ))}
                   </select>
                 </label>
-                {scenario === "fighting" && (
+                {config.mode === "duel" ? (
                   <>
                     <label>
-                      Player 2 · Flux
+                      FORMATO
                       <select
-                        aria-label="Modelo Player 2"
-                        value={player2}
-                        onChange={(e) => setPlayer2(e.target.value)}
-                      >
-                        {providers.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.id.toUpperCase()}
-                            {["reference", "random", "simulated"].includes(p.id)
-                              ? " · sin IA"
-                              : ""}
-                            {!p.configured ? " · configurar" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Batalla
-                      <select
-                        aria-label="Formato de batalla"
-                        value={bestOf}
-                        onChange={(e) => setBestOf(+e.target.value)}
+                        disabled={active}
+                        value={config.best_of}
+                        onChange={(e) =>
+                          change({
+                            ...config,
+                            best_of: +e.target.value as 1 | 3 | 5,
+                          })
+                        }
                       >
                         {[1, 3, 5].map((n) => (
                           <option key={n} value={n}>
-                            Al mejor de {n}
+                            Mejor de {n}
                           </option>
                         ))}
                       </select>
                     </label>
                     <label>
-                      Tiempo por ronda
+                      RONDA
                       <select
-                        aria-label="Tiempo por ronda"
-                        value={roundSeconds}
-                        onChange={(e) => setRoundSeconds(+e.target.value)}
+                        disabled={active}
+                        value={config.round_seconds}
+                        onChange={(e) =>
+                          change({ ...config, round_seconds: +e.target.value })
+                        }
                       >
-                        {[15, 30, 45, 60, 90].map((n) => (
+                        {[30, 60, 90, 120].map((n) => (
                           <option key={n} value={n}>
                             {n} segundos
                           </option>
                         ))}
                       </select>
                     </label>
-                    <p className="sample-note">
-                      Dos modelos, un mismo combate. Salud, energía, golpes,
-                      bloqueo, salto y poderes. Las consultas pendientes no
-                      pasan a la siguiente ronda. Los slots pueden usar el mismo
-                      proveedor.
-                    </p>
                   </>
-                )}
-                {execution === "turns" && (
-                  <>
-                    <label>
-                      Avance
-                      <select
-                        aria-label="Avance de turnos"
-                        value={mode}
-                        onChange={(e) => setMode(e.target.value)}
-                      >
-                        <option value="realtime">Automático</option>
-                        <option value="step">Manual · siguiente turno</option>
-                      </select>
-                    </label>
-                    <label>
-                      Rival
-                      <select
-                        value={opponent}
-                        onChange={(e) => setOpponent(e.target.value)}
-                      >
-                        <option value="minimax">Óptimo · minimax</option>
-                        <option value="random">Aleatorio</option>
-                      </select>
-                    </label>
-                  </>
-                )}
-                {execution === "realtime" && (
-                  <>
-                    <label>
-                      Experiencia
-                      <select
-                        aria-label="Experiencia"
-                        value={experience}
-                        onChange={(e) => setExperience(e.target.value)}
-                      >
-                        <option value="play">Jugar y observar</option>
-                        <option value="evaluate">
-                          Evaluar · velocidad fija 1×
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      Velocidad del juego
-                      <select
-                        value={experience === "evaluate" ? 1 : speed}
-                        disabled={experience === "evaluate"}
-                        onChange={(e) => setSpeed(+e.target.value)}
-                      >
-                        {[0.1, 0.25, 0.5, 1, 1.5, 2, 3].map((n) => (
-                          <option key={n} value={n}>
-                            {n}×
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
-                )}
-                {execution === "batch" && (
-                  <>
-                    <label>
-                      Dataset
-                      <select
-                        aria-label="Dataset activo"
-                        value={datasets[scenario] ? "custom" : "included"}
-                        onChange={() =>
-                          setDatasets((old) => {
-                            const next = { ...old };
-                            delete next[scenario];
-                            return next;
-                          })
-                        }
-                      >
-                        <option value="included">
-                          Incluido · sintético ({available.length})
-                        </option>
-                        {datasets[scenario] && (
-                          <option value="custom">
-                            Importado ({datasets[scenario].length})
-                          </option>
-                        )}
-                      </select>
-                    </label>
-                    <label>
-                      Muestra
-                      <select
-                        aria-label="Tamaño de muestra"
-                        value={sampleSize}
-                        onChange={(e) => setSampleSize(+e.target.value)}
-                      >
-                        {[25, 100, 500, 0].map((n) => (
-                          <option key={n} value={n}>
-                            {n || "Todos"}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Selección
-                      <select
-                        value={sampling}
-                        onChange={(e) => setSampling(e.target.value)}
-                      >
-                        <option value="random">Aleatoria</option>
-                        <option value="balanced">
-                          Equilibrada por categoría
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      Casos
-                      <select
-                        value={difficulty}
-                        onChange={(e) => setDifficulty(e.target.value)}
-                      >
-                        <option value="all">Todos</option>
-                        {["claro", "difícil", "ambiguo"].map((d) => (
-                          <option key={d}>{d}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <p className="sample-note">
-                      Se procesarán {Math.min(sampleSize || eligible, eligible)}{" "}
-                      de {eligible} casos disponibles, sin repetición. Las
-                      variantes sintéticas comparten familias.{" "}
-                      <button onClick={() => setPage("datasets")}>
-                        Ver o importar dataset
-                      </button>
-                    </p>
-                  </>
-                )}
-                <button
-                  className="primary start-button"
-                  onClick={start}
-                  disabled={
-                    loading ||
-                    !providers.length ||
-                    (execution === "batch" && !eligible)
-                  }
-                >
-                  <Play size={16} fill="currentColor" />
-                  {loading
-                    ? "Iniciando…"
-                    : runs.length
-                      ? "Reiniciar ejecución"
-                      : "Iniciar ejecución"}
-                </button>
-              </div>
-              {advanced ? (
-                <div className="advanced-options">
-                  {scenario !== "fighting" && (
-                    <>
-                      {" "}
-                      <label>
-                        Comparar en vivo
-                        <select
-                          value={compare}
-                          onChange={(e) => setCompare(e.target.value)}
-                        >
-                          <option value="">Un solo proveedor</option>
-                          {providers
-                            .filter((p) => p.id !== provider)
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.id}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                    </>
-                  )}
+                ) : (
                   <label>
-                    Semilla
-                    <input
-                      type="number"
-                      value={seed}
-                      min="0"
-                      onChange={(e) => setSeed(+e.target.value)}
-                    />
+                    EJERCICIO
+                    <select
+                      disabled={active}
+                      value={config.preset}
+                      onChange={(e) =>
+                        change({ ...config, preset: e.target.value })
+                      }
+                    >
+                      {Object.entries(catalog.presets).map(([id, name]) => (
+                        <option key={id} value={id}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                  {execution === "realtime" && (
-                    <label>
-                      Presupuesto técnico (ms)
-                      <input
-                        aria-label="Presupuesto en milisegundos"
-                        type="number"
-                        min="10"
-                        max="60000"
-                        value={budget}
-                        onChange={(e) => setBudget(+e.target.value)}
-                      />
-                    </label>
-                  )}
-                  {execution === "realtime" && (
-                    <label>
-                      Frecuencia máxima (Hz)
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        value={hz}
-                        onChange={(e) => setHz(+e.target.value)}
-                      />
-                    </label>
-                  )}
-                  {execution === "realtime" && (
-                    <label>
-                      Antigüedad máxima (ms)
-                      <input
-                        type="number"
-                        value={age}
-                        min="10"
-                        max="60000"
-                        onChange={(e) => setAge(+e.target.value)}
-                      />
-                    </label>
-                  )}
-                  {execution !== "batch" && scenario !== "fighting" && (
-                    <label>
-                      Duración máxima (s)
-                      <input
-                        type="number"
-                        min="1"
-                        max="3600"
-                        value={seconds}
-                        onChange={(e) => setSeconds(+e.target.value)}
-                      />
-                    </label>
-                  )}
-                  {execution !== "batch" && scenario !== "fighting" && (
-                    <label>
-                      Representación
-                      <select
-                        value={representation}
-                        onChange={(e) => setRepresentation(e.target.value)}
-                      >
-                        <option value="direct">Estado directo</option>
-                        <option value="enriched">Estado enriquecido</option>
-                      </select>
-                    </label>
-                  )}
-                  {execution !== "batch" && scenario !== "fighting" && (
-                    <label>
-                      Control
-                      <select
-                        value={controller}
-                        onChange={(e) => setController(e.target.value)}
-                      >
-                        <option value="model">Proveedor</option>
-                        <option value="human">Humano · juegos</option>
-                      </select>
-                    </label>
-                  )}
-                  {scenario === "tetris" ? (
-                    <label>
-                      Control de Tetris
-                      <select
-                        value={tetris}
-                        onChange={(e) => setTetris(e.target.value)}
-                      >
-                        <option value="movement">Movimientos</option>
-                        <option value="placement">Colocación final</option>
-                      </select>
-                    </label>
-                  ) : null}
-                  {scenario === "hierarchy" ? (
-                    <label>
-                      Clasificación
-                      <select
-                        value={hierarchy}
-                        onChange={(e) => setHierarchy(e.target.value)}
-                      >
-                        <option value="tree">Jerárquica</option>
-                        <option value="flat">Plana</option>
-                      </select>
-                    </label>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="config-foot">
-                <span className="status-dot" />
-                {scenario === "fighting"
-                  ? "Cada slot usa su propio proveedor. Referencia, azar y simulador son controles sin IA."
-                  : provider === "simulated"
-                    ? "Simulador: heurística con 35 ms añadidos. No es un modelo de IA."
-                    : provider === "reference" || provider === "random"
-                      ? "Control de referencia sin llamadas a un modelo."
-                      : providers.find((p) => p.id === provider)?.description}
-                {compare && scenario !== "fighting" ? (
-                  <span>
-                    {" "}
-                    ·{" "}
-                    {execution === "batch"
-                      ? "Mismos casos, etiquetas y orden para ambos proveedores."
-                      : "Misma semilla; trayectorias independientes."}
-                  </span>
-                ) : null}
-                {datasets[scenario] ? (
-                  <span>
-                    {" "}
-                    · Dataset propio: {datasets[scenario].length} casos
-                  </span>
-                ) : null}
+                )}
+              </div>
+              <div className="play-controls">
+                {active ? (
+                  <>
+                    <button
+                      disabled={game.match?.status === "preparing"}
+                      onClick={() =>
+                        void game.command(
+                          game.match?.status === "paused" ? "resume" : "pause",
+                        )
+                      }
+                    >
+                      {game.match?.status === "paused" ? (
+                        <Play size={16} />
+                      ) : (
+                        <Pause size={16} />
+                      )}{" "}
+                      {game.match?.status === "paused" ? "Reanudar" : "Pausar"}
+                    </button>
+                    <button
+                      className="stop-button"
+                      onClick={() => void game.command("stop")}
+                    >
+                      <Square size={14} /> Detener
+                    </button>
+                    {config.mode === "training" && (
+                      <>
+                        <button
+                          title="Reiniciar ejercicio"
+                          onClick={() => void game.command("reset")}
+                        >
+                          <RotateCcw size={16} />
+                        </button>
+                        {game.match?.status === "paused" && (
+                          <button onClick={() => void game.command("step")}>
+                            +1 frame
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {["finisher", "cinematic", "finish"].includes(
+                      game.frame?.phase ?? "",
+                    ) && (
+                      <button onClick={() => void game.command("skip")}>
+                        Omitir
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    className="primary start-button"
+                    disabled={!ready || busy || !configured}
+                    onClick={start}
+                  >
+                    <Play size={17} fill="currentColor" />
+                    {busy
+                      ? "Preparando…"
+                      : !ready
+                        ? "Cargando arena…"
+                        : game.match
+                          ? "Revancha"
+                          : "Iniciar combate"}
+                  </button>
+                )}
               </div>
             </section>
-            <div className="arena-section-title">
-              <h2>
-                {chosen?.name ?? "Arena"} <span>{chosen?.description}</span>
-              </h2>
-              <span className="live-label">
-                <i /> LIVE INSPECTOR
-              </span>
-            </div>
-            {execution === "batch" && runs.length === 2 && (
-              <ComparisonTable runs={runs} />
-            )}
-            {runs.length ? (
-              <div
-                className={"runs-grid " + (runs.length > 1 ? "comparison" : "")}
-              >
-                {runs.map((run) => (
-                  <RunPanel key={run.id} initial={run} onError={onError} />
-                ))}
-              </div>
-            ) : (
-              <div className="idle-layout">
-                <div className="idle-scene">
-                  <div className="idle-scene-header">
-                    <span>{chosen?.name}</span>
-                    <small>VISTA PREVIA · SIN INFERENCIA</small>
-                  </div>
-                  {chosen?.kind === "game" ? (
-                    <GameCanvas state={preview?.state} />
-                  ) : (
-                    <div className="idle-document">
-                      <span>ENTRADA DE EJEMPLO</span>
-                      <blockquote>
-                        {preview?.state?.text ??
-                          "Selecciona un escenario de decisiones"}
-                      </blockquote>
-                    </div>
-                  )}
-                  <div className="idle-scene-bottom">
-                    <span>Semilla {seed}</span>
-                    <span>
-                      Inicia una ejecución para observar decisiones reales{" "}
-                      <ChevronRight size={13} />
-                    </span>
-                  </div>
-                </div>
-                <aside className="idle-inspector">
-                  <span className="eyebrow">DEL ESTADO A LA ACCIÓN</span>
-                  <h3>
-                    Una decisión.
-                    <br />
-                    Toda su trayectoria.
-                  </h3>
-                  <div className="pipeline">
-                    {[
-                      ["Entrada", "El estado que recibe el modelo"],
-                      ["Inferencia", "Tiempo de llamada y cola"],
-                      ["Resultado", "Opciones y probabilidades"],
-                      ["Acción", "Aplicada, tardía o descartada"],
-                    ].map(([title, desc], i) => (
-                      <div key={title}>
-                        <span>{i + 1}</span>
-                        <div>
-                          <strong>{title}</strong>
-                          <p>{desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="info-note">
-                    <Zap size={16} />
-                    <p>
-                      La UI sigue viva mientras el modelo responde. El mundo
-                      tampoco espera.
-                    </p>
-                  </div>
-                </aside>
-              </div>
-            )}
-            <footer className="arena-footer">
-              <Terminal size={13} />
+            <div className="arena-footnote">
               <span>
-                Sin razonamiento inventado. Solo estados, resultados y tiempos
-                observados.
+                <i className="live-dot" />
+                {config.players.every((p) => p.controller !== "model")
+                  ? "CONTROLADORES DE REFERENCIA · SIN CONSULTAS A IA"
+                  : "DECISIONES REALES · UN CONTROLADOR POR JUGADOR"}
               </span>
-              <button onClick={() => setPage("providers")}>
-                Conectar otro modelo <Plus size={13} />
+              <button
+                className="text-button"
+                onClick={() => setInspector(!inspector)}
+              >
+                Inspector de decisiones <ChevronDown size={14} />
               </button>
-            </footer>
-          </div>
-        ) : (
-          <Suspense
-            fallback={<div className="workspace-page">Cargando vista…</div>}
-          >
-            {page === "workflow" ? (
-              <WorkflowEditor
-                graph={graph}
-                onGraph={setGraph}
-                onError={onError}
-              />
-            ) : page === "datasets" ? (
-              <Datasets
-                scenarios={scenarios}
-                onDataset={(name, items) =>
-                  setDatasets((old) => ({ ...old, [name]: items }))
-                }
-                onError={onError}
-              />
-            ) : page === "benchmarks" ? (
-              <Benchmarks
-                scenarios={scenarios}
-                providers={providers}
-                onError={onError}
-              />
-            ) : page === "history" ? (
-              <History onError={onError} />
-            ) : (
-              <section className="workspace-page">
-                <div className="section-heading">
-                  <div>
-                    <span className="eyebrow">MODELOS INTERCAMBIABLES</span>
-                    <h2>Un protocolo. Más posibilidades.</h2>
-                    <p>
-                      Las credenciales permanecen en el backend. Cada adaptador
-                      declara lo que puede medir.
-                    </p>
-                  </div>
-                </div>
-                <div className="provider-cards">
-                  {providers.map((p) => (
-                    <article key={p.id}>
-                      <span
-                        className={
-                          "provider-badge " + (p.configured ? "ready" : "")
-                        }
-                      >
-                        {p.configured
-                          ? "Configurado"
-                          : "Requiere configuración"}
-                      </span>
-                      <h3>{p.id}</h3>
-                      <p>{p.description}</p>
-                      <ul>
-                        <li>Choice · Ordinal · Probabilidad binaria</li>
-                        <li>
-                          {p.probabilities
-                            ? "Distribuciones disponibles"
-                            : "Sin probabilidades nativas"}
-                        </li>
-                        <li>
-                          {p.internal_timings
-                            ? "Instrumentación local de inferencia"
-                            : "Tiempo de llamada observable"}
-                        </li>
-                      </ul>
-                      {p.id === "laya" ? (
-                        <pre>
-                          {
-                            "uv sync --extra laya\nLAYA_ENABLED=true\nLAYA_DEVICE=cuda\nLAYA_CHECKPOINT=multilingual"
-                          }
-                        </pre>
-                      ) : p.id === "jev" ? (
-                        <pre>{"TYPESAFE_API_KEY=…\nJEV_MODEL=jev-latest"}</pre>
-                      ) : p.id === "generic" ? (
-                        <pre>
-                          {
-                            "GENERIC_BASE_URL=…/v1\nGENERIC_MODEL=…\nGENERIC_API_KEY=…"
-                          }
-                        </pre>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-                <div className="info-note">
-                  Reinicia el backend después de cambiar .env. La disponibilidad
-                  de CUDA y los pesos se verifica al preparar una ejecución.
-                </div>
-                <details>
-                  <summary>Entorno de ejecución</summary>
-                  <pre>{JSON.stringify(health?.hardware, null, 2)}</pre>
-                </details>
-              </section>
+            </div>
+            {human && (
+              <div className="human-help">
+                <kbd>A</kbd>
+                <kbd>D</kbd> mover <kbd>J</kbd> golpe <kbd>K</kbd> fuerte{" "}
+                <kbd>L</kbd> bloquear <kbd>H</kbd> cargar <kbd>I</kbd> rayo{" "}
+                <kbd>1–4</kbd> combos <kbd>Esc</kbd> pausa{" "}
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    if (active) void game.command("pause");
+                    setShowSettings(true);
+                  }}
+                >
+                  Todos los controles
+                </button>
+              </div>
             )}
-          </Suspense>
+            {game.match && inspector && (
+              <Inspector match={game.match} events={game.events} />
+            )}
+            {tab === "lab" && (
+              <Laboratory
+                config={config}
+                onWatch={(m) => {
+                  setConfig(m.config);
+                  game.attach(m);
+                }}
+                onError={onError}
+              />
+            )}
+            <details className="moves-guide">
+              <summary>
+                El arte del combate <span>Reglas, energía y técnicas</span>
+              </summary>
+              <div className="rules-grid">
+                <article>
+                  <span>01 / DOMINA EL RITMO</span>
+                  <h3>Cada apertura cuenta.</h3>
+                  <p>
+                    Bloquea alto o bajo. Anticipa un golpe con parry. El agarre
+                    vence a la guardia; el barrido vence a la guardia alta. Un
+                    dash acerca, pero no te hace invulnerable.
+                  </p>
+                </article>
+                <article>
+                  <span>02 / ADMINISTRA TU ENERGÍA</span>
+                  <h3>Acumula. Arriesga. Libera.</h3>
+                  <p>
+                    Empiezas con 25 EN. Carga para recuperar 12 por segundo.
+                    Proyectil: 15. Técnica: 25. Rayo: 35. Definitiva: 100.
+                    Romper un combo cuesta 50.
+                  </p>
+                </article>
+                <article>
+                  <span>03 / CHOQUE DE PODERES</span>
+                  <h3>Dos voluntades, tres pulsos.</h3>
+                  <p>
+                    Los rayos que colisionan abren un duelo simultáneo. Sostén,
+                    impulsa o sobrecarga. La elección rival permanece oculta
+                    hasta resolver cada pulso. Repetir sobrecarga reduce su
+                    fuerza.
+                  </p>
+                </article>
+              </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Movimiento</th>
+                      <th>Energía</th>
+                      <th>Daño base</th>
+                      <th>Preparación</th>
+                      <th>Recuperación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(catalog.moves).map(([id, m]) => (
+                      <tr key={id}>
+                        <td>{m.label}</td>
+                        <td>{m.energy}</td>
+                        <td>{m.damage}</td>
+                        <td>{m.startup} frames</td>
+                        <td>{m.recovery} frames</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </>
         )}
       </main>
-    </div>
+      <footer className="app-footer">
+        <span>
+          ECLIPSE ARENA <b>/</b> SYSTEM ONE
+        </span>
+        <span>
+          Personajes originales · Combate 2.5D · {catalog.rules_version}
+        </span>
+      </footer>
+      {showSettings && (
+        <SettingsPanel
+          value={settings}
+          onChange={setSettings}
+          onClose={() => setShowSettings(false)}
+          profiles={profiles}
+          catalog={catalog}
+        />
+      )}
+    </>
   );
 }

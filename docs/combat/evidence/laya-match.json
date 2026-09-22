@@ -1,0 +1,107 @@
+{
+  "status": "completed",
+  "error": null,
+  "active_seconds": 20.0,
+  "warmup": [
+    {
+      "profile": "laya",
+      "ready": true,
+      "device": "cpu",
+      "checkpoint": "multilingual",
+      "max_len": 1536,
+      "head_max_len": 512,
+      "cold_start_ms": 16343.475486006355,
+      "gpu": null,
+      "preflight": {
+        "ready": true,
+        "states": 8,
+        "max_len": 1536,
+        "head_max_len": 512
+      }
+    },
+    {
+      "profile": "aggressive",
+      "ready": true
+    }
+  ],
+  "timing": "slow CPU diagnostic 5000ms",
+  "players": [
+    {
+      "controller": "model",
+      "model_profile_id": "laya",
+      "counts": {
+        "accepted": 5,
+        "completed": 5,
+        "applied": 2,
+        "rejected": 3
+      },
+      "latency": {
+        "count": 5,
+        "p50": 4008.27,
+        "p95": 4699.326,
+        "p99": 4717.398,
+        "mean": 3637.518
+      },
+      "error": null,
+      "actual_model": "laya/multilingual"
+    },
+    {
+      "controller": "baseline",
+      "model_profile_id": "aggressive",
+      "counts": {
+        "accepted": 24,
+        "completed": 24,
+        "applied": 24
+      },
+      "latency": {
+        "count": 24,
+        "p50": 0.221,
+        "p95": 2.74,
+        "p99": 4.82,
+        "mean": 0.605
+      },
+      "error": null,
+      "actual_model": "aggressive (sin IA)"
+    }
+  ],
+  "fighters": [
+    {
+      "character": "ember",
+      "health": 1000,
+      "stats": {
+        "damage": 95,
+        "received": 1031,
+        "hits": 2,
+        "blocks": 0,
+        "parries": 0,
+        "guard_breaks": 0,
+        "whiffs": 0,
+        "energy_spent": 15,
+        "energy_gained": 47.40000000000008,
+        "combos": 2,
+        "escapes": 0,
+        "ultimates": 0,
+        "clashes": 0
+      }
+    },
+    {
+      "character": "flux",
+      "health": 1000,
+      "stats": {
+        "damage": 1031,
+        "received": 95,
+        "hits": 15,
+        "blocks": 0,
+        "parries": 0,
+        "guard_breaks": 0,
+        "whiffs": 3,
+        "energy_spent": 0,
+        "energy_gained": 74.89999999999995,
+        "combos": 2,
+        "escapes": 0,
+        "ultimates": 0,
+        "clashes": 0
+      }
+    }
+  ]
+}

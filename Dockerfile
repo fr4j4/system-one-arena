@@ -9,7 +9,7 @@ RUN npm run build
 FROM python:3.11-slim-bookworm AS base
 COPY --from=ghcr.io/astral-sh/uv:0.11.17 /uv /usr/local/bin/uv
 WORKDIR /app
-ENV UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 ARENA_DATA_DIR=/app/data ARENA_FRONTEND_DIR=/app/frontend/dist
+ENV UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 COMBAT_DATA_DIR=/app/data/combat-v2 ARENA_FRONTEND_DIR=/app/frontend/dist
 COPY pyproject.toml uv.lock ./
 COPY backend/ ./backend/
 RUN uv sync --frozen --no-dev

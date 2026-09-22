@@ -260,3 +260,50 @@ def test_all_fighters_and_training_presets_are_valid():
             view = observe(w, 0)
             assert view["state"]["self"]["character"] == char
             assert view["actions"]
+
+
+def test_training_clash_and_finisher_presets_are_reachable():
+    from arena.combat.protocol import MatchConfig
+
+    for preset, phase in [("clash", "clash"), ("finisher", "finish")]:
+        world = World(MatchConfig(mode="training", preset=preset).model_dump())
+        for _ in range(60):
+            world.step()
+        assert world.phase == phase
+        if phase == "finish":
+            assert world.apply(0, "finish", "human")
+            for _ in range(300):
+                world.step()
+            assert world.done and world.phase == "finished"
+
+
+def test_clash_ko_in_training_resets_without_awarding_match():
+    from arena.combat.protocol import MatchConfig
+
+    world = World(MatchConfig(mode="training").model_dump())
+    world.fighters[0].energy = 10000
+    world.fighters[1].health = 20
+    world.begin_clash()
+    assert world.apply(1, "yield")
+    for _ in range(48):
+        world.step()
+    assert world.phase == "round_over" and not world.done
+    for _ in range(90):
+        world.step()
+    assert all(f.health == 1000 for f in world.fighters)
+    assert world.wins == [0, 0]
+
+
+def test_old_projectile_keeps_original_correlation_without_confirming_new_combo():
+    from arena.combat.content import MOVES
+    from arena.combat.protocol import MatchConfig
+
+    world = World(MatchConfig().model_dump())
+    world.phase = "active"
+    a, b = world.fighters
+    a.move = "light"
+    a.request_id = "new-melee"
+    a.connected = False
+    assert world.hit(0, "bolt", dict(MOVES["bolt"], request_id="old-projectile", source="model"), 0)
+    assert not a.connected
+    assert world.events[-1]["request_id"] == "old-projectile"

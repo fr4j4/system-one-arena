@@ -6,6 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -117,6 +118,7 @@ async def create_match(config: MatchConfig):
 async def matches():
     data = await app.state.store.runs()
     live = {m.id: m.view() for m in app.state.matches.values()}
+    live.update({s.current.id: s.current.view() for s in app.state.series.values() if s.current})
     return sorted(
         [live.pop(m["id"], m) for m in data] + list(live.values()),
         key=lambda m: m["created_at"],
@@ -187,6 +189,7 @@ async def live(ws: WebSocket, key: str):
     queue = asyncio.Queue(256)
     match.subscribers.add(queue)
     controller = ws.query_params.get("role") == "controller"
+    input_stream = uuid4().hex
 
     async def receive():
         while True:
@@ -197,7 +200,13 @@ async def live(ws: WebSocket, key: str):
                     player = data.get("player")
                     if type(seq) is not int or type(player) is not int:
                         raise ValueError("Entrada inválida")
-                    match.human(player, str(data.get("action", "neutral")), seq, bool(data.get("release")))
+                    match.human(
+                        player,
+                        str(data.get("action", "neutral")),
+                        seq,
+                        bool(data.get("release")),
+                        input_stream,
+                    )
                 except (ValueError, KeyError):
                     await ws.send_json(dict(kind="input_error", error="Entrada o jugador no válido"))
 

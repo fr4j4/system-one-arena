@@ -69,6 +69,7 @@ def worker(config, incoming, outgoing, stopping):
             elif kind == "action":
                 now = time.perf_counter_ns()
                 i = cmd["player"]
+                stream = (i, cmd.get("input_stream", "default"))
                 reason = None
                 if paused:
                     reason = "paused"
@@ -78,11 +79,11 @@ def worker(config, incoming, outgoing, stopping):
                     reason = "context_changed"
                 elif now > cmd.get("deadline_ns", now + 1):
                     reason = "expired"
-                elif cmd.get("source") == "human" and cmd["input_seq"] <= last_input.get(i, -1):
+                elif cmd.get("source") == "human" and cmd["input_seq"] <= last_input.get(stream, -1):
                     reason = "duplicate_input"
                 else:
                     if cmd.get("source") == "human":
-                        last_input[i] = cmd["input_seq"]
+                        last_input[stream] = cmd["input_seq"]
                     if not world.apply(i, cmd["action"], cmd.get("source", "model"), cmd.get("request_id")):
                         if cmd.get("source") == "human" and world.phase == "active":
                             buffered[i] = (world.tick + 6, cmd)

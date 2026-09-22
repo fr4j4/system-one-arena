@@ -1,0 +1,86 @@
+[
+  {
+    "fighter": "ember",
+    "phase": "active",
+    "action": "bolt",
+    "ms": 1007.4,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "ember",
+    "phase": "clash",
+    "action": "surge",
+    "ms": 378.6,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "ember",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 336.3,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "flux",
+    "phase": "active",
+    "action": "bolt",
+    "ms": 330.3,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "flux",
+    "phase": "clash",
+    "action": "surge",
+    "ms": 344.3,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "flux",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 478.0,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "terra",
+    "phase": "active",
+    "action": "bolt",
+    "ms": 372.4,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "terra",
+    "phase": "clash",
+    "action": "surge",
+    "ms": 368.0,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "terra",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 344.0,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "active",
+    "action": "bolt",
+    "ms": 355.9,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "clash",
+    "action": "surge",
+    "ms": 357.4,
+    "model": "jev-1.13.0"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 422.5,
+    "model": "jev-1.13.0"
+  }
+]

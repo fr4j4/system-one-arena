@@ -11,3 +11,5 @@
 **/playwright-report
 data
 *.egg-info
+
+providers.local.json

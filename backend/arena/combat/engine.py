@@ -407,6 +407,7 @@ class World:
                             life=120 if f.move == "bolt" else 60,
                             damage=spec["damage"],
                             request_id=f.request_id,
+                            source=f.source,
                         )
                     )
                     f.connected = True
@@ -483,7 +484,14 @@ class World:
                 min(old[p["id"]], p["x"]) - 400 <= target.x <= max(old[p["id"]], p["x"]) + 400
                 and abs(p["y"] - (target.y + 1000)) < 850
             ):
-                hits.append((p["owner"], p["kind"], MOVES[p["kind"]].copy(), 0))
+                hits.append(
+                    (
+                        p["owner"],
+                        p["kind"],
+                        dict(MOVES[p["kind"]], request_id=p["request_id"], source=p.get("source", "model")),
+                        0,
+                    )
+                )
                 removed.add(p["id"])
         self.projectiles = [
             p for p in self.projectiles if p["id"] not in removed and p["life"] > 0 and abs(p["x"]) < 11000
@@ -532,7 +540,9 @@ class World:
             )
             self.hitstop = 5
             return False
-        source.connected = True
+        from_current = spec.get("request_id", source.request_id) == source.request_id and source.move == name
+        if from_current:
+            source.connected = True
         if guard:
             target.guard = max(0, target.guard - spec["guard"] * 100)
             target.stats["blocks"] += 1
@@ -542,7 +552,7 @@ class World:
                 target.held = "neutral"
                 target.action = "guard_break"
                 source.stats["guard_breaks"] += 1
-            if source.route:
+            if source.route and from_current:
                 source.route = []
                 source.route_name = None
                 source.held = "guard_high"
@@ -604,7 +614,8 @@ class World:
                 combo=target.combo_hits,
                 x=target.x / 1000,
                 y=target.y / 1000 + 1,
-                request_id=source.request_id,
+                request_id=spec.get("request_id", source.request_id),
+                source=spec.get("source", source.source),
             )
         target.health = max(0, target.health - max(0, damage))
         target.hurt_until = self.tick + 12

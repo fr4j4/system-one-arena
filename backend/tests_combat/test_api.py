@@ -88,6 +88,18 @@ def test_human_input_ack_and_disconnect_pause(client):
             break
         time.sleep(0.02)
     assert client.get("/api/v2/matches/" + key).json()["status"] == "paused"
+    with client.websocket_connect(f"/api/v2/matches/{key}/live?role=controller") as ws:
+        client.post(f"/api/v2/matches/{key}/control", json={"command": "resume"})
+        for _ in range(100):
+            e = ws.receive_json()
+            if e["kind"] == "snapshot" and e["state"]["phase"] == "active":
+                break
+        ws.send_json({"kind": "input", "player": 0, "seq": 1, "action": "forward"})
+        for _ in range(100):
+            e = ws.receive_json()
+            if e["kind"] == "input_ack":
+                break
+        assert e["reason"] is None
     assert (
         client.post(f"/api/v2/matches/{key}/control", json={"command": "stop"}).json()["status"] == "stopped"
     )

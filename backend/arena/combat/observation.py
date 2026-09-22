@@ -50,6 +50,7 @@ def observe(world, i):
 
     state = dict(
         scenario="combat",
+        seed=world.config.get("seed", 42),
         practice=world.config.get("preset") if world.config.get("mode") == "training" else None,
         player_id=f["id"],
         phase=world.phase,

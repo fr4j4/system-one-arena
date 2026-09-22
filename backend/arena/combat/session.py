@@ -61,7 +61,7 @@ class Match:
 
     def view(self):
         players = []
-        for slot, s in zip(self.config.players, self.stats, strict=True):
+        for i, (slot, s) in enumerate(zip(self.config.players, self.stats, strict=True)):
             players.append(
                 dict(
                     **slot.model_dump(),
@@ -71,6 +71,7 @@ class Match:
                     last_result=s["last_result"],
                     error=s["error"],
                     actual_model=s["model"],
+                    pending=bool(self.calls[i] and not self.calls[i].done()),
                 )
             )
         return dict(
@@ -159,6 +160,12 @@ class Match:
                             self.last_snapshot_saved = now
                         await self.emit("snapshot", save=save, state=self.snapshot)
                     else:
+                        if kind in ("input_ack", "buffer_applied"):
+                            i = int(packet["player_id"][1]) - 1
+                            reason = packet.get("reason")
+                            self.stats[i]["counts"][
+                                "buffered" if reason == "buffered" else "rejected" if reason else "applied"
+                            ] += 1
                         if kind in ("applied", "rejected"):
                             i = int(packet["player_id"][1]) - 1
                             self.stats[i]["counts"][kind] += 1
@@ -218,6 +225,7 @@ class Match:
             self.error = str(exc)
             await self.emit("error", error=self.error)
         finally:
+            await self.emit("status", status=self.status, error=self.error)
             if self.process:
                 self.process.stopping.set()
             await asyncio.gather(*(c for c in self.calls if c), return_exceptions=True)
@@ -377,7 +385,7 @@ class Match:
         if self.task:
             await self.task
 
-    def human(self, player, action, seq, release=False):
+    def human(self, player, action, seq, release=False, input_stream="default"):
         if player not in (0, 1) or self.config.players[player].controller != "human":
             raise ValueError("Slot no humano")
         if self.status != "running" or not self.process:
@@ -385,4 +393,13 @@ class Match:
         if release:
             self.process.send(dict(kind="release", player=player))
             return
-        self.process.send(dict(kind="action", player=player, action=action, input_seq=seq, source="human"))
+        self.process.send(
+            dict(
+                kind="action",
+                player=player,
+                action=action,
+                input_seq=seq,
+                input_stream=input_stream,
+                source="human",
+            )
+        )

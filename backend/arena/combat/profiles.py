@@ -247,6 +247,7 @@ class Registry:
             p = self.profiles.get(slot.model_profile_id)
             if not p or not p.public()["configured"]:
                 raise ValueError("Perfil no configurado: " + slot.model_profile_id)
+            slot.controller = "model" if p.public()["ai"] else "baseline"
 
     async def close(self):
         await asyncio.gather(*(a.close() for a in self.adapters.values()), return_exceptions=True)

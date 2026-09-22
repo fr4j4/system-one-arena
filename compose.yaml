@@ -19,7 +19,7 @@ services:
       context: .
       target: base
     environment:
-      ARENA_DATA_DIR: /app/data
+      COMBAT_DATA_DIR: /app/data/combat-v2
       LAYA_ENABLED: "false"
 
   arena-cpu:
@@ -29,7 +29,7 @@ services:
       context: .
       target: cpu
     environment:
-      ARENA_DATA_DIR: /app/data
+      COMBAT_DATA_DIR: /app/data/combat-v2
       LAYA_ENABLED: "true"
       LAYA_DEVICE: cpu
 
@@ -40,7 +40,7 @@ services:
       context: .
       target: cuda
     environment:
-      ARENA_DATA_DIR: /app/data
+      COMBAT_DATA_DIR: /app/data/combat-v2
       LAYA_ENABLED: "true"
       LAYA_DEVICE: cuda
     deploy:

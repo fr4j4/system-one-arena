@@ -1,0 +1,86 @@
+[
+  {
+    "fighter": "ember",
+    "phase": "active",
+    "action": "combo_chase",
+    "ms": 5054.0,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "ember",
+    "phase": "clash",
+    "action": "yield",
+    "ms": 1318.4,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "ember",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 651.3,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "flux",
+    "phase": "active",
+    "action": "combo_chase",
+    "ms": 2589.6,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "flux",
+    "phase": "clash",
+    "action": "yield",
+    "ms": 1089.9,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "flux",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 790.0,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "terra",
+    "phase": "active",
+    "action": "combo_chase",
+    "ms": 5268.1,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "terra",
+    "phase": "clash",
+    "action": "yield",
+    "ms": 1651.7,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "terra",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 861.4,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "active",
+    "action": "combo_chase",
+    "ms": 3770.6,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "clash",
+    "action": "yield",
+    "ms": 1173.3,
+    "model": "laya/multilingual"
+  },
+  {
+    "fighter": "nyx",
+    "phase": "finish",
+    "action": "finish",
+    "ms": 602.6,
+    "model": "laya/multilingual"
+  }
+]

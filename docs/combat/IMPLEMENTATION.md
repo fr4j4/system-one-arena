@@ -27,13 +27,13 @@ ModelProfile includes adapter+model/checkpoint+endpoint+server credential env re
 Full-screen arena with fighter-select side panels, cinematic versus identity, dark blue-black/ivory, ember coral and flux cyan accents, restrained violet for Nyx and gold Terra. Barlow Condensed display, DM Sans body, IBM Plex Mono telemetry. Signature: opposing character selection plates framing live 3D arena. Inspector collapsible. No old scenario navigation. WebGL2, GLB skinned original humanoid rigs, toon bands/contours, state-driven animation, meaningful impact pauses, trails, auras, directional sound and adaptive music. Settings reduced flash/shake/motion and audio channels. High/medium/low quality; preload before paid calls; WebGL failure blocks start. Asset origins/licenses in manifest; use own generated geometry/animation plus verified CC0 where helpful, no paid dependency or runtime asset hotlinks. Target60FPS1080p, <=25MB selected match resources; mobile spectator/config only.
 
 ## Delivery checklist
-- [ ] 1 Legacy preserved/published, new combat shell/storage
-- [ ] 2 Pure engine, moves/resources/rounds, human/reference
-- [ ] 3 Profiles/model protocol/routing/observations/stop
-- [ ] 4 Combos/aerial/parry/escape/ultimate/clash
-- [ ] 5 Four skinned fighters/two arenas/finishers
-- [ ] 6 Visual/audio polish, controls, accessibility, quality
-- [ ] 7 Lab/series/replay/metrics/export
+- [x] 1 Legacy preserved/published, new combat shell/storage
+- [x] 2 Pure engine, moves/resources/rounds, human/reference
+- [x] 3 Profiles/model protocol/routing/observations/stop
+- [x] 4 Combos/aerial/parry/escape/ultimate/clash
+- [x] 5 Four skinned fighters/two arenas/finishers
+- [x] 6 Visual/audio polish, controls, accessibility, quality
+- [x] 7 Lab/series/replay/metrics/export
 - [ ] 8 Verification, documentation, main merge/push/server
 
 ## Verification

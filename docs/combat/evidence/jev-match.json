@@ -1,0 +1,97 @@
+{
+  "status": "completed",
+  "error": null,
+  "active_seconds": 20.0,
+  "warmup": [
+    {
+      "profile": "jev",
+      "ready": true,
+      "model": "jev-latest"
+    },
+    {
+      "profile": "aggressive",
+      "ready": true
+    }
+  ],
+  "timing": "native 800ms",
+  "players": [
+    {
+      "controller": "model",
+      "model_profile_id": "jev",
+      "counts": {
+        "accepted": 21,
+        "expired": 2,
+        "completed": 21,
+        "applied": 5,
+        "rejected": 14
+      },
+      "latency": {
+        "count": 21,
+        "p50": 367.82,
+        "p95": 965.555,
+        "p99": 1317.832,
+        "mean": 456.024
+      },
+      "error": null,
+      "actual_model": "jev-1.13.0"
+    },
+    {
+      "controller": "baseline",
+      "model_profile_id": "aggressive",
+      "counts": {
+        "accepted": 24,
+        "completed": 24,
+        "applied": 24
+      },
+      "latency": {
+        "count": 24,
+        "p50": 0.159,
+        "p95": 4.329,
+        "p99": 15.888,
+        "mean": 1.276
+      },
+      "error": null,
+      "actual_model": "aggressive (sin IA)"
+    }
+  ],
+  "fighters": [
+    {
+      "character": "ember",
+      "health": 1000,
+      "stats": {
+        "damage": 195,
+        "received": 1079,
+        "hits": 3,
+        "blocks": 0,
+        "parries": 0,
+        "guard_breaks": 0,
+        "whiffs": 1,
+        "energy_spent": 45,
+        "energy_gained": 44.60000000000006,
+        "combos": 0,
+        "escapes": 0,
+        "ultimates": 0,
+        "clashes": 0
+      }
+    },
+    {
+      "character": "flux",
+      "health": 935,
+      "stats": {
+        "damage": 1079,
+        "received": 195,
+        "hits": 17,
+        "blocks": 0,
+        "parries": 0,
+        "guard_breaks": 0,
+        "whiffs": 2,
+        "energy_spent": 0,
+        "energy_gained": 77.89999999999993,
+        "combos": 3,
+        "escapes": 0,
+        "ultimates": 0,
+        "clashes": 0
+      }
+    }
+  ]
+}
