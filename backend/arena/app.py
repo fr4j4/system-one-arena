@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 
 from arena.adapters import make_adapters
+from arena.battle import BattleRun
 from arena.benchmark import Benchmark, BenchmarkConfig, calibrate
 from arena.metrics import evaluate, hardware
 from arena.protocol import DecisionRequest, RunConfig, StrictModel
@@ -124,6 +125,8 @@ def validate_config(config):
     if config.scenario not in {s["id"] for s in SCENARIOS}:
         raise HTTPException(422, "Escenario desconocido")
     provider_ids = getattr(config, "providers", [getattr(config, "provider", "")])
+    if config.scenario == "fighting" and hasattr(config, "player2_provider"):
+        provider_ids = [*provider_ids, config.player2_provider]
     if any(p not in app.state.adapters for p in provider_ids):
         raise HTTPException(422, "Proveedor desconocido")
     try:
@@ -150,7 +153,13 @@ async def create_run(config: RunConfig):
             if old.task.done() and not old.subscribers:
                 del app.state.runs[key]
                 break
-    run = Run(config, app.state.adapters[config.provider], app.state.store, app.state.gates[config.provider])
+    run = (
+        BattleRun(config, app.state.adapters, app.state.store, app.state.gates)
+        if config.scenario == "fighting"
+        else Run(
+            config, app.state.adapters[config.provider], app.state.store, app.state.gates[config.provider]
+        )
+    )
     app.state.runs[run.id] = run
     await run.start()
     return run.view()
@@ -247,7 +256,12 @@ async def live(websocket: WebSocket, key: str):
                     pass
                 if time.perf_counter() - last_metrics >= 1:
                     await websocket.send_json(
-                        {"kind": "metrics", "metrics": run.metrics(), "status": run.status}
+                        {
+                            "kind": "metrics",
+                            "metrics": run.metrics(),
+                            "status": run.status,
+                            **({"players": run.summary()["players"]} if isinstance(run, BattleRun) else {}),
+                        }
                     )
                     last_metrics = time.perf_counter()
 

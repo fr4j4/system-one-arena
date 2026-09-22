@@ -119,6 +119,9 @@ def normalize(raw: dict, request: DecisionRequest, model: str) -> DecisionResult
 class RunConfig(StrictModel):
     scenario: str = "snake"
     provider: str = "simulated"
+    player2_provider: str = "reference"
+    best_of: Literal[1, 3, 5] = 3
+    round_seconds: int = Field(default=45, ge=5, le=120)
     mode: Literal["realtime", "step"] = "realtime"
     seed: int = Field(default=42, ge=0, le=2147483647)
     decision_hz: float = Field(default=10, ge=1, le=30)

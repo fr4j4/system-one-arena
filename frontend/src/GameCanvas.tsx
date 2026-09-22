@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
+const FightingArena = lazy(() => import("./FightingArena"));
 
 const C = {
   bg: "#111c2b",
@@ -9,11 +10,7 @@ const C = {
   text: "#dce7f4",
   red: "#ff7384",
 };
-export default function GameCanvas({
-  state,
-}: {
-  state: Record<string, any> | undefined;
-}) {
+function FlatGameCanvas({ state }: { state: Record<string, any> | undefined }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const frames = useRef<{ previous: any; current: any; at: number }>({
     previous: state,
@@ -302,5 +299,21 @@ export default function GameCanvas({
       aria-label={`Estado del juego ${state?.scenario ?? ""}`}
       role="img"
     />
+  );
+}
+
+export default function GameCanvas({
+  state,
+}: {
+  state: Record<string, any> | undefined;
+}) {
+  return state?.scenario === "fighting" && state.fighters ? (
+    <Suspense
+      fallback={<div className="fighting-stage">Cargando arena 3D…</div>}
+    >
+      <FightingArena state={state} />
+    </Suspense>
+  ) : (
+    <FlatGameCanvas state={state} />
   );
 }

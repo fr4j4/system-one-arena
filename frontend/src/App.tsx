@@ -87,6 +87,9 @@ export default function App() {
     [seconds, setSeconds] = useState(180),
     [tetris, setTetris] = useState("movement"),
     [hierarchy, setHierarchy] = useState("tree");
+  const [player2, setPlayer2] = useState("reference"),
+    [bestOf, setBestOf] = useState(3),
+    [roundSeconds, setRoundSeconds] = useState(45);
   const [sampleSize, setSampleSize] = useState(25),
     [sampling, setSampling] = useState("random"),
     [difficulty, setDifficulty] = useState("all"),
@@ -145,6 +148,9 @@ export default function App() {
       const config: RunConfig = {
         scenario,
         provider,
+        player2_provider: player2,
+        best_of: bestOf,
+        round_seconds: roundSeconds,
         mode: execution === "turns" ? mode : "realtime",
         seed,
         decision_hz: hz,
@@ -157,8 +163,20 @@ export default function App() {
               : speed
             : 1,
         representation,
-        controller: execution === "batch" ? "model" : controller,
-        max_seconds: seconds,
+        controller:
+          execution === "batch" || scenario === "fighting"
+            ? "model"
+            : controller,
+        max_seconds:
+          scenario === "fighting"
+            ? Math.min(
+                3600,
+                Math.ceil(
+                  ((roundSeconds + 4) * (bestOf + 2)) /
+                    (experience === "evaluate" ? 1 : speed),
+                ) + 15,
+              )
+            : seconds,
         sample_size: sampleSize || null,
         sampling,
         difficulty,
@@ -173,7 +191,7 @@ export default function App() {
       };
       const first = await post<Run>("/runs", config);
       setRuns([first]);
-      if (compare) {
+      if (compare && scenario !== "fighting") {
         const second = await post<Run>("/runs", {
           ...config,
           provider: compare,
@@ -345,9 +363,11 @@ export default function App() {
               </div>
               <div className="config-row">
                 <label>
-                  Proveedor
+                  {scenario === "fighting" ? "Player 1 · Ember" : "Proveedor"}
                   <select
-                    aria-label="Proveedor"
+                    aria-label={
+                      scenario === "fighting" ? "Modelo Player 1" : "Proveedor"
+                    }
                     value={provider}
                     onChange={(e) => setProvider(e.target.value)}
                   >
@@ -365,6 +385,62 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+                {scenario === "fighting" && (
+                  <>
+                    <label>
+                      Player 2 · Flux
+                      <select
+                        aria-label="Modelo Player 2"
+                        value={player2}
+                        onChange={(e) => setPlayer2(e.target.value)}
+                      >
+                        {providers.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.id.toUpperCase()}
+                            {["reference", "random", "simulated"].includes(p.id)
+                              ? " · sin IA"
+                              : ""}
+                            {!p.configured ? " · configurar" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Batalla
+                      <select
+                        aria-label="Formato de batalla"
+                        value={bestOf}
+                        onChange={(e) => setBestOf(+e.target.value)}
+                      >
+                        {[1, 3, 5].map((n) => (
+                          <option key={n} value={n}>
+                            Al mejor de {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Tiempo por ronda
+                      <select
+                        aria-label="Tiempo por ronda"
+                        value={roundSeconds}
+                        onChange={(e) => setRoundSeconds(+e.target.value)}
+                      >
+                        {[15, 30, 45, 60, 90].map((n) => (
+                          <option key={n} value={n}>
+                            {n} segundos
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="sample-note">
+                      Dos modelos, un mismo combate. Salud, energía, golpes,
+                      bloqueo, salto y poderes. Las consultas pendientes no
+                      pasan a la siguiente ronda. Los slots pueden usar el mismo
+                      proveedor.
+                    </p>
+                  </>
+                )}
                 {execution === "turns" && (
                   <>
                     <label>
@@ -513,22 +589,27 @@ export default function App() {
               </div>
               {advanced ? (
                 <div className="advanced-options">
-                  <label>
-                    Comparar en vivo
-                    <select
-                      value={compare}
-                      onChange={(e) => setCompare(e.target.value)}
-                    >
-                      <option value="">Un solo proveedor</option>
-                      {providers
-                        .filter((p) => p.id !== provider)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.id}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                  {scenario !== "fighting" && (
+                    <>
+                      {" "}
+                      <label>
+                        Comparar en vivo
+                        <select
+                          value={compare}
+                          onChange={(e) => setCompare(e.target.value)}
+                        >
+                          <option value="">Un solo proveedor</option>
+                          {providers
+                            .filter((p) => p.id !== provider)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.id}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    </>
+                  )}
                   <label>
                     Semilla
                     <input
@@ -575,7 +656,7 @@ export default function App() {
                       />
                     </label>
                   )}
-                  {execution !== "batch" && (
+                  {execution !== "batch" && scenario !== "fighting" && (
                     <label>
                       Duración máxima (s)
                       <input
@@ -587,7 +668,7 @@ export default function App() {
                       />
                     </label>
                   )}
-                  {execution !== "batch" && (
+                  {execution !== "batch" && scenario !== "fighting" && (
                     <label>
                       Representación
                       <select
@@ -599,7 +680,7 @@ export default function App() {
                       </select>
                     </label>
                   )}
-                  {execution !== "batch" && (
+                  {execution !== "batch" && scenario !== "fighting" && (
                     <label>
                       Control
                       <select
@@ -639,12 +720,14 @@ export default function App() {
               ) : null}
               <div className="config-foot">
                 <span className="status-dot" />
-                {provider === "simulated"
-                  ? "Simulador: heurística con 35 ms añadidos. No es un modelo de IA."
-                  : provider === "reference" || provider === "random"
-                    ? "Control de referencia sin llamadas a un modelo."
-                    : providers.find((p) => p.id === provider)?.description}
-                {compare ? (
+                {scenario === "fighting"
+                  ? "Cada slot usa su propio proveedor. Referencia, azar y simulador son controles sin IA."
+                  : provider === "simulated"
+                    ? "Simulador: heurística con 35 ms añadidos. No es un modelo de IA."
+                    : provider === "reference" || provider === "random"
+                      ? "Control de referencia sin llamadas a un modelo."
+                      : providers.find((p) => p.id === provider)?.description}
+                {compare && scenario !== "fighting" ? (
                   <span>
                     {" "}
                     ·{" "}

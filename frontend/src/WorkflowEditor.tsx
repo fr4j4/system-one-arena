@@ -159,7 +159,11 @@ export default function WorkflowEditor({
   );
   const changeNodes = (changes: NodeChange[]) => {
     if (!graph) return;
-    const moved = applyNodeChanges(changes, nodes);
+    // Measurements belong to React Flow; writing them back can restore an old
+    // graph when its resize notification races with loading a new template.
+    const positions = changes.filter((change) => change.type === "position");
+    if (!positions.length) return;
+    const moved = applyNodeChanges(positions, nodes);
     onGraph({
       ...graph,
       nodes: graph.nodes.map((n) => ({

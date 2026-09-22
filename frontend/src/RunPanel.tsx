@@ -136,7 +136,8 @@ export default function RunPanel({
 }) {
   const [run, setRun] = useState(initial),
     [events, setEvents] = useState<Event[]>(initial.events ?? []),
-    [tab, setTab] = useState("probabilities");
+    [tab, setTab] = useState("probabilities"),
+    [player, setPlayer] = useState("p1");
   const wsRef = useRef<WebSocket | null>(null),
     probes = useRef(new Map<string, number>());
   useEffect(() => {
@@ -170,6 +171,7 @@ export default function RunPanel({
             ...r,
             metrics: event.metrics,
             status: event.status,
+            players: event.players ?? r.players,
           }));
           return;
         }
@@ -194,6 +196,26 @@ export default function RunPanel({
           return;
         }
         setEvents((old) => [...old, event].slice(-160));
+        if (
+          event.player_id &&
+          (event.kind === "completed" || event.kind === "accepted")
+        )
+          setRun((r) => ({
+            ...r,
+            players: {
+              ...r.players,
+              [event.player_id]: {
+                ...(r.players?.[event.player_id] ?? {
+                  provider: event.provider,
+                  counts: {},
+                  provider_ms: r.metrics.provider_ms,
+                }),
+                ...(event.kind === "completed"
+                  ? { last_result: event.result }
+                  : { last_request: event.request }),
+              },
+            },
+          }));
         if (event.kind === "completed")
           setRun((r) => ({ ...r, last_result: event.result }));
         if (event.kind === "accepted")
@@ -230,6 +252,7 @@ export default function RunPanel({
             ...r,
             status: event.status,
             metrics: event.metrics,
+            players: event.players ?? r.players,
           }));
           onChange?.();
         }
@@ -277,8 +300,15 @@ export default function RunPanel({
         ? "realtime"
         : "batch");
   const batch = execution === "batch";
+  const fighting = run.config.scenario === "fighting";
+  const inspectedResult = fighting
+    ? run.players?.[player]?.last_result
+    : run.last_result;
+  const inspectedRequest = fighting
+    ? run.players?.[player]?.last_request
+    : run.last_request;
   return (
-    <article className="run-panel">
+    <article className={"run-panel" + (fighting ? " fighting-run" : "")}>
       <header className="run-header">
         <div className="provider-name">
           <span className="model-avatar">
@@ -286,11 +316,13 @@ export default function RunPanel({
           </span>
           <div>
             <strong>
-              {run.config.provider === "simulated"
-                ? "Simulador"
-                : run.config.provider === "reference"
-                  ? "Referencia"
-                  : run.config.provider.toUpperCase()}
+              {fighting
+                ? "Batalla · Ember vs Flux"
+                : run.config.provider === "simulated"
+                  ? "Simulador"
+                  : run.config.provider === "reference"
+                    ? "Referencia"
+                    : run.config.provider.toUpperCase()}
             </strong>
             <small>
               {batch
@@ -339,6 +371,46 @@ export default function RunPanel({
           latencia del proveedor.
         </div>
       )}
+      {fighting && (
+        <div className="fighter-models">
+          {["p1", "p2"].map((id, i) => {
+            const slot = run.players?.[id];
+            return (
+              <button
+                key={id}
+                className={player === id ? "selected" : ""}
+                onClick={() => setPlayer(id)}
+                aria-pressed={player === id}
+              >
+                <b>
+                  PLAYER {i + 1} ·{" "}
+                  {(
+                    slot?.provider ??
+                    (i === 0
+                      ? run.config.provider
+                      : (run.config.player2_provider ?? "reference"))
+                  ).toUpperCase()}
+                </b>
+                <span>
+                  {slot?.counts.applied ?? 0} acciones aplicadas · p50{" "}
+                  {ms(slot?.provider_ms.p50)} ms · {slot?.counts.expired ?? 0}{" "}
+                  fuera de plazo
+                </span>
+                {slot?.error && <small>{slot.error}</small>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {fighting && state?.rounds?.length > 0 && (
+        <div className="round-results">
+          {state?.rounds.map((r: any) => (
+            <span key={r.round}>
+              R{r.round}: {r.winner?.toUpperCase() ?? "Empate"} · {r.reason}
+            </span>
+          ))}
+        </div>
+      )}
       {batch && (
         <ResultsTable
           rows={run.rows ?? []}
@@ -347,7 +419,11 @@ export default function RunPanel({
         />
       )}
       <details className="execution-inspector" open={batch ? undefined : true}>
-        {batch && <summary>Entrada actual e inspector del modelo</summary>}
+        <summary>
+          {batch
+            ? "Entrada actual e inspector del modelo"
+            : "Arena e inspector del modelo"}
+        </summary>
         <div className="live-body">
           <div className="scene-column">
             {state &&
@@ -469,11 +545,15 @@ export default function RunPanel({
             </div>
             <div className="inspector-body">
               {tab === "probabilities" ? (
-                <Distribution result={run.last_result} />
+                <Distribution result={inspectedResult} />
               ) : tab === "timeline" ? (
                 <div className="timeline">
                   {events
-                    .filter((e) => e.kind !== "snapshot")
+                    .filter(
+                      (e) =>
+                        e.kind !== "snapshot" &&
+                        (!fighting || !e.player_id || e.player_id === player),
+                    )
                     .slice(-24)
                     .reverse()
                     .map((e) => (
@@ -493,7 +573,7 @@ export default function RunPanel({
               ) : (
                 <pre>
                   {JSON.stringify(
-                    tab === "input" ? run.last_request : run.last_result?.raw,
+                    tab === "input" ? inspectedRequest : inspectedResult?.raw,
                     null,
                     2,
                   ) ?? "Todavía no hay una decisión."}

@@ -12,6 +12,8 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
     seq, paused, hold_until = 0, False, 0
     next_tick = last_publish = time.perf_counter()
     seen = set()
+    fight = game.fight if game.name == "fighting" else None
+    player_holds = [0, 0]
 
     def emit(event):
         try:
@@ -21,7 +23,7 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
             pass
 
     def snapshot():
-        return {
+        result = {
             "kind": "snapshot",
             "episode_id": episode,
             "state_seq": seq,
@@ -30,6 +32,17 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
             "allowed_actions": game.legal_actions(),
             "questions": {k: q.model_dump() for k, q in game.questions().items()} if not game.done else {},
         }
+        if fight:
+            result["round"] = fight.round
+            result["player_views"] = {
+                f"p{i + 1}": {
+                    "state": fight.perspective(i),
+                    "allowed_actions": fight.legal_actions(i),
+                    "questions": {k: q.model_dump() for k, q in fight.questions(i).items()},
+                }
+                for i in range(2)
+            }
+        return result
 
     emit(snapshot())
     while not stopping.is_set():
@@ -58,11 +71,21 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
                     reason = "future_state"
                 elif game.name == "tic-tac-toe" and cmd["state_seq"] != seq:
                     reason = "superseded"
-                elif not game.apply(cmd["action"]):
+                elif fight and cmd.get("round") != fight.round:
+                    reason = "round_mismatch"
+                elif fight and cmd.get("player_id") not in ("p1", "p2"):
+                    reason = "invalid_player"
+                elif not (
+                    fight.apply(cmd["action"], int(cmd["player_id"][1]) - 1)
+                    if fight
+                    else game.apply(cmd["action"])
+                ):
                     reason = "illegal_action"
                 seen.add(cmd["request_id"])
                 if not reason:
                     hold_until = cmd["valid_until_ns"]
+                    if fight:
+                        player_holds[int(cmd["player_id"][1]) - 1] = cmd["valid_until_ns"]
                     if config["mode"] == "step":
                         for _ in range(12):
                             game.tick(1 / 60 * config["speed"])
@@ -71,6 +94,15 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
                     {
                         "kind": "rejected" if reason else "applied",
                         "request_id": cmd["request_id"],
+                        **(
+                            {
+                                "player_id": cmd.get("player_id"),
+                                "round": cmd.get("round"),
+                                "current_round": fight.round,
+                            }
+                            if fight
+                            else {}
+                        ),
                         "reason": reason,
                         "state_seq": seq,
                         "action": cmd["action"],
@@ -84,7 +116,11 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
             steps = min(5, int((now - next_tick) * 60) + 1)
             for _ in range(steps):
                 if not paused and config["mode"] == "realtime" and not game.done:
-                    if time.perf_counter_ns() > hold_until:
+                    if fight:
+                        for i in range(2):
+                            if time.perf_counter_ns() > player_holds[i]:
+                                fight.neutral(i)
+                    elif time.perf_counter_ns() > hold_until:
                         game.neutral()
                     game.tick(config["speed"] / 60)
                     # In turn-based play, elapsed time does not supersede the board.

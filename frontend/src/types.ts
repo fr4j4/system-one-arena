@@ -81,6 +81,9 @@ export type Metrics = {
 export type RunConfig = {
   scenario: string;
   provider: string;
+  player2_provider?: string;
+  best_of?: number;
+  round_seconds?: number;
   mode: string;
   seed: number;
   decision_hz: number;
@@ -99,6 +102,17 @@ export type RunConfig = {
   graph?: Graph;
 };
 export type Run = {
+  players?: Record<
+    string,
+    {
+      provider: string;
+      counts: Record<string, number>;
+      provider_ms: Stats;
+      last_result?: Result;
+      last_request?: Record<string, unknown>;
+      error?: string;
+    }
+  >;
   execution?: string;
   sample?: { selected: number; available: number; [key: string]: any };
   id: string;

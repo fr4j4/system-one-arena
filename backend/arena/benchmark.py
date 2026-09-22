@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from pydantic import Field
 
+from arena.battle import BattleRun
 from arena.metrics import evaluate, hardware, percentiles, temperature_scale
 from arena.protocol import DecisionRequest, RunConfig, StrictModel
 from arena.runtime import GAMES, Run
@@ -38,8 +39,11 @@ def corpus(config):
             if game.done:
                 seed += 1
                 game = Game(config.scenario, seed, config.options)
+            if config.scenario == "fighting":
+                while game.fight.phase != "active":
+                    game.tick(1 / 60)
             actions = game.legal_actions()
-            state = game.observe()
+            state = game.fight.perspective(0) if config.scenario == "fighting" else game.observe()
             action = reference_action(state, actions)
             items.append(
                 {
@@ -50,6 +54,9 @@ def corpus(config):
                 }
             )
             game.apply(action)
+            if config.scenario == "fighting":
+                opponent = game.fight.perspective(1)
+                game.fight.apply(reference_action(opponent, game.fight.legal_actions(1)), 1)
             for _ in range(12):
                 game.tick(1 / 60)
         return items
@@ -136,7 +143,8 @@ class Benchmark:
                         run_id=self.id,
                         episode_id="corpus",
                         state_seq=i,
-                        schema_id=self.config.scenario + "/1",
+                        schema_id=self.config.scenario
+                        + ("/2" if self.config.scenario == "fighting" else "/1"),
                         state=sample["state"],
                         questions=sample["questions"],
                         allowed_actions=sample["allowed_actions"],
@@ -183,20 +191,20 @@ class Benchmark:
             for i in range(self.config.episodes):
                 if self.cancelled:
                     return
-                run = Run(
-                    RunConfig(
-                        scenario=self.config.scenario,
-                        provider=provider,
-                        seed=self.config.seed + i,
-                        budget_ms=self.config.budget_ms,
-                        max_state_age_ms=max(200, self.config.budget_ms),
-                        max_seconds=self.config.episode_seconds,
-                        options=self.config.options,
-                        dataset=self.config.dataset,
-                    ),
-                    self.adapters[provider],
-                    self.store,
-                    self.gates[provider],
+                config = RunConfig(
+                    scenario=self.config.scenario,
+                    provider=provider,
+                    seed=self.config.seed + i,
+                    budget_ms=self.config.budget_ms,
+                    max_state_age_ms=max(200, self.config.budget_ms),
+                    max_seconds=self.config.episode_seconds,
+                    options=self.config.options,
+                    dataset=self.config.dataset,
+                )
+                run = (
+                    BattleRun(config, self.adapters, self.store, self.gates)
+                    if config.scenario == "fighting"
+                    else Run(config, self.adapters[provider], self.store, self.gates[provider])
                 )
                 self.current_run = run
                 await run.start()

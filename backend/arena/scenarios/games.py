@@ -7,6 +7,7 @@ import random
 from collections import deque
 
 from arena.protocol import Question
+from arena.scenarios.fighting import FightingWorld, fighting_reference
 
 CATALOG = [
     ("tic-tac-toe", "Tic-tac-toe", "Estrategia", "Amenazas, reglas y decisiones por turnos"),
@@ -54,16 +55,7 @@ class Game:
             self.s = {"board": [[0] * 10 for _ in range(20)], "next": self.rng.randrange(7), "lines": 0}
             self._piece()
         elif self.name == "fighting":
-            self.s = {
-                "x": 25.0,
-                "enemy_x": 75.0,
-                "health": 100,
-                "enemy_health": 100,
-                "energy": 100.0,
-                "cooldown": 0.0,
-                "enemy_cooldown": 0.0,
-                "enemy_posture": "idle",
-            }
+            self.fight = FightingWorld(self.options)
         elif self.name == "space-invaders":
             self.s = {
                 "x": 50.0,
@@ -85,6 +77,8 @@ class Game:
             self.s["food"] = self.rng.choice(cells)
 
     def legal_actions(self):
+        if self.name == "fighting":
+            return self.fight.legal_actions()
         if self.done:
             return []
         if self.name == "tic-tac-toe":
@@ -102,11 +96,11 @@ class Game:
                     if self._fits(self._rotated(r), x, self.s["y"])
                 ]
             return ["left", "right", "rotate", "down", "drop", "neutral"]
-        if self.name == "fighting":
-            return ["approach", "retreat", "attack", "block", "neutral"]
         return ["left", "right", "fire", "left_fire", "right_fire", "neutral"]
 
     def observe(self, enriched=False):
+        if self.name == "fighting":
+            return self.fight.observe()
         state = {
             "scenario": self.name,
             **copy.deepcopy(self.s),
@@ -127,17 +121,16 @@ class Game:
                 )
         if enriched and self.name == "pong":
             state["ball_paddle_delta"] = self.s["ball"][1] - self.s["paddle"]
-        if enriched and self.name == "fighting":
-            state["distance"] = abs(self.s["x"] - self.s["enemy_x"])
         return state
 
     def questions(self):
+        if self.name == "fighting":
+            return self.fight.questions()
         rules = {
             "tic-tac-toe": "You are player 1 (X). Board is row-major, 0 empty, 1 yours, -1 opponent. Win or block a line.",
             "snake": "Coordinates: x right, y down. Turn relative to current direction. Eat food, avoid walls and body.",
             "pong": "Control the left paddle. Follow the incoming ball and avoid missing. y increases downward.",
             "tetris": "Complete horizontal lines. Avoid holes and tall stacks. Coordinates x right, y down.",
-            "fighting": "Defeat the enemy. Attack within distance 14 with energy >=15 and zero cooldown. Block incoming hits.",
             "space-invaders": "Move along x, shoot enemies above, dodge enemy bullets approaching y=90.",
         }
         return {
@@ -149,6 +142,8 @@ class Game:
         }
 
     def apply(self, action):
+        if self.name == "fighting":
+            return self.fight.apply(action)
         if action not in self.legal_actions():
             return False
         self.decisions += 1
@@ -195,6 +190,11 @@ class Game:
         return True
 
     def tick(self, dt):
+        if self.name == "fighting":
+            self.fight.tick(dt)
+            self.elapsed, self.score = self.fight.elapsed, self.fight.score
+            self.done, self.outcome = self.fight.done, self.fight.outcome
+            return
         if self.done:
             return
         self.elapsed += dt
@@ -244,28 +244,6 @@ class Game:
                 s["y"] += 1
             else:
                 self._lock()
-        elif self.name == "fighting":
-            s["cooldown"] = max(0.0, s["cooldown"] - dt)
-            s["enemy_cooldown"] = max(0.0, s["enemy_cooldown"] - dt)
-            s["energy"] = min(100.0, s["energy"] + 13 * dt)
-            sign = 1 if s["enemy_x"] > s["x"] else -1
-            s["x"] = max(
-                3, min(97, s["x"] + {"approach": sign * 22, "retreat": -sign * 22}.get(self.action, 0) * dt)
-            )
-            distance = abs(s["x"] - s["enemy_x"])
-            if distance > 12:
-                s["enemy_x"] -= sign * 14 * dt
-            s["enemy_posture"] = "attack" if s["enemy_cooldown"] < 0.25 else "recover"
-            if self.action == "attack" and distance <= 14 and s["cooldown"] == 0 and s["energy"] >= 15:
-                s["enemy_health"] -= 12
-                s["energy"] -= 15
-                s["cooldown"] = 0.65
-                self.score += 12
-            if distance <= 14 and s["enemy_cooldown"] == 0:
-                s["health"] -= 2 if self.action == "block" else 10
-                s["enemy_cooldown"] = 1.0
-            if min(s["health"], s["enemy_health"]) <= 0:
-                self.done, self.outcome = True, "win" if s["enemy_health"] <= 0 else "loss"
         elif self.name == "space-invaders":
             direction = -1 if "left" in self.action else 1 if "right" in self.action else 0
             s["x"] = max(3, min(97, s["x"] + direction * 36 * dt))
@@ -305,6 +283,9 @@ class Game:
                 self.done, self.outcome = True, "win" if not s["enemies"] else "loss"
 
     def neutral(self):
+        if self.name == "fighting":
+            self.fight.neutral()
+            return
         self.action = "neutral"
 
     def _ttt_done(self):
@@ -415,9 +396,7 @@ def reference_action(state, actions):
         d = state["ball"][1] - state["paddle"]
         return "up" if d < -2 else "down" if d > 2 else "neutral"
     if name == "fighting":
-        if abs(state["x"] - state["enemy_x"]) > 12:
-            return "approach"
-        return "block" if state["cooldown"] > 0 or state["energy"] < 15 else "attack"
+        return fighting_reference(state, actions)
     if name == "space-invaders":
         if any(abs(p[0] - state["x"]) < 8 and p[1] > 62 for p in state["enemy_bullets"]):
             return "left_fire" if state["x"] > 50 else "right_fire"

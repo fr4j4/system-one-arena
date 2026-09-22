@@ -4,6 +4,16 @@ A local-first, observable decision laboratory for **Laya, TypeSafe Jev and other
 
 ![Arena interface](docs/screenshots/arena.png)
 
+## Fighting 2.5D
+
+![Shared 3D fighting arena and player inspector](docs/screenshots/fighting.png)
+
+Select **Fighting**, choose a provider independently for **Player 1 / Ember** and **Player 2 / Flux**, set best-of 1/3/5 and the round duration, then start. Both models play in the same arena; Jev vs Laya, two slots using the same provider, and model vs reference/random baselines use the same protocol.
+
+The [Three.js](https://threejs.org/docs/) view renders original articulated characters, lighting, shadows, projectile powers and impacts. Movement and hit detection stay on one XY plane. Health, energy, guard, jumps, punch/kick, energy bolts, charged waves and round wins are live. Click either player card to inspect that slot’s inputs, probabilities, output and timeline. Pause and stop control both players and suppress further model requests. Already-sent requests may finish but cannot apply after stop.
+
+This is a procedural fighting prototype with shared mechanics, not licensed characters or commercial-game assets. The browser needs WebGL2; provider inference remains entirely on the backend. See [combat protocol and rules](docs/protocol.md#fighting-25d-fighting2).
+
 ## Run it
 
 Requirements: Git, Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), Node.js 22+, or Docker Compose. Python 3.11 is the tested default.

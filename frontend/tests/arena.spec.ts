@@ -243,3 +243,56 @@ test("every business dataset has 240 cases and expanded moderation runs", async 
   await expect(page.locator(".run-panel .status")).toHaveText("Completado");
   await expect(page.getByText("100 / 100 procesados")).toBeVisible();
 });
+
+test("3D fighting shares a battle with independent model slots", async ({
+  page,
+  request,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.getByRole("button", { name: /Fighting/ }).click();
+  await page.getByLabel("Modelo Player 1").selectOption("reference");
+  await page.getByLabel("Modelo Player 2").selectOption("random");
+  await page.getByLabel("Formato de batalla").selectOption("1");
+  await page.getByLabel("Tiempo por ronda").selectOption("15");
+  await expect(page.locator('canvas[data-renderer="threejs"]')).toBeVisible();
+  await page.getByRole("button", { name: "Iniciar ejecución" }).click();
+  const panel = page.locator(".fighting-run");
+  await expect(panel.locator(".status")).toHaveText("En vivo");
+  await expect(panel.locator('canvas[data-renderer="threejs"]')).toBeVisible();
+  await expect(panel.locator(".fighter-models button").nth(0)).toContainText(
+    "REFERENCE",
+  );
+  await expect(panel.locator(".fighter-models button").nth(1)).toContainText(
+    "RANDOM",
+  );
+  await expect(
+    panel.locator(".fighter-models button").nth(0),
+  ).not.toContainText("0 acciones aplicadas");
+  await expect(
+    panel.locator(".fighter-models button").nth(1),
+  ).not.toContainText("0 acciones aplicadas");
+  await panel.locator(".fighter-models button").nth(1).click();
+  await page.getByRole("button", { name: "Entrada", exact: true }).click();
+  await expect(panel.locator("pre")).toContainText('"player_id": "p2"');
+  await page.screenshot({ path: "/tmp/arena-fighting.png", fullPage: true });
+  await panel.getByRole("button", { name: "Detener", exact: true }).click();
+  await expect(panel.locator(".status")).toHaveText("Detenido");
+  const runs = await (await request.get("/api/runs")).json();
+  const battle = runs.find(
+    (r: any) => r.config.scenario === "fighting" && r.status === "stopped",
+  );
+  expect(battle.players.p1.counts.applied).toBeGreaterThan(0);
+  expect(battle.players.p2.counts.applied).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "/tmp/arena-fighting-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(errors).toEqual([]);
+});

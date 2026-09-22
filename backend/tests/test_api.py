@@ -122,3 +122,25 @@ def test_live_metrics_are_sent_even_with_continuous_snapshots(client):
                 break
     assert metrics is not None, "Snapshots must not starve the periodic metrics heartbeat"
     assert metrics["status"] == "running"
+
+
+def test_fighting_has_independent_slots_and_validates_both(client):
+    assert (
+        client.post("/api/runs", json={"scenario": "fighting", "player2_provider": "missing"}).status_code
+        == 422
+    )
+    assert client.post("/api/runs", json={"scenario": "fighting", "best_of": 2}).status_code == 422
+    response = client.post(
+        "/api/runs",
+        json={
+            "scenario": "fighting",
+            "provider": "reference",
+            "player2_provider": "random",
+            "max_seconds": 1,
+        },
+    )
+    assert response.status_code == 201
+    run = response.json()
+    assert run["players"]["p1"]["provider"] == "reference"
+    assert run["players"]["p2"]["provider"] == "random"
+    client.post("/api/runs/" + run["id"] + "/control", json={"command": "stop"})
