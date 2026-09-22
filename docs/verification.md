@@ -29,3 +29,7 @@ La música y efectos originales usan Web Audio, paneo horizontal y variación de
 El primer tramo de referencia/referencia mantuvo unos60 ticks/s hasta1391s, con3105/3104 acciones aplicadas. Su proceso terminó conSIGTERM (exit143), sin excepción del motor registrada. No se declara una ejecución continua de30min. El segundo tramo completó480s activos (aprox.28800 ticks) sin error. Total verificado:1871s activos,31min11s, en dos tramos. El pico RSS del coordinador se registra en `evidence/soak.json`; incluye procesos separados de prueba, no una medición de fuga del navegador. No se declara una ejecución continua de30min.
 
 Las credenciales reales permanecen en `.env` ignorado. `providers.local.json` también está excluido de Git y Docker. No se probaron despliegue Docker ni multijugador remoto; la app es local.
+
+## Publicación
+
+`main` y `combat-v2` publicados; `legacy` permanece en8f228fb y el tag `arena-legacy-v1`. Backend final reiniciado enlocalhost:8000 cuando ya no había encuentros activos. Salud y catálogo verificados porHTTP.

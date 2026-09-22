@@ -34,7 +34,9 @@ Full-screen arena with fighter-select side panels, cinematic versus identity, da
 - [x] 5 Four skinned fighters/two arenas/finishers
 - [x] 6 Visual/audio polish, controls, accessibility, quality
 - [x] 7 Lab/series/replay/metrics/export
-- [ ] 8 Verification, documentation, main merge/push/server
+- [x] 8 Verification, documentation, main merge/push/server
 
 ## Verification
 Engine tests costs/regen/bounds/timing/defense/projectiles/cancel/hit scaling/caps/KO/ties/mirrors/seeded replay. Runtime tests both players/shared gates/slow providers/late epochs/pause/stop/failures/sealed choices. API and browser full loops, keyboard/gamepad, focus/disconnect, slots/inspector/energy/clash/replay. Real Jev and Laya checks all special phases; do not claim checks not performed. Thirty minute soak, memory/renderer cleanup, measured performance/hardware, desktop/mobile screenshots and recording. Keys remain ignored. Every step gets meaningful checks and a commit; final app must include all steps, not just first slice.
+
+Delivery verified on main: 74 Python tests, 6 browser tests, real provider checks, 1871s accumulated stability across two segments. Continuous 30min, hardware GPU60FPS and CUDA remain unverified; see docs/verification.md for measured limits.
