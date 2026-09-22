@@ -197,6 +197,8 @@ export default function RunPanel({
           setRun((r) => ({ ...r, last_result: event.result }));
         if (event.kind === "accepted")
           setRun((r) => ({ ...r, last_request: event.request }));
+        if (event.kind === "stopped")
+          setRun((r) => ({ ...r, status: "stopped" }));
         if (event.kind === "ready")
           setRun((r) => ({ ...r, status: "running", warmup: event.warmup }));
         if (event.kind === "pause" || event.kind === "resume")
@@ -277,6 +279,14 @@ export default function RunPanel({
             </small>
           </div>
         </div>
+        <button
+          className="stop-run-button"
+          aria-label="Detener"
+          disabled={!active}
+          onClick={() => command("stop")}
+        >
+          <Square size={14} fill="currentColor" /> Detener
+        </button>
         <span className={"status " + run.status}>
           <i />
           {labels[run.status] ?? run.status}
@@ -361,13 +371,6 @@ export default function RunPanel({
                 onClick={() => command("step")}
               >
                 <SkipForward size={16} />
-              </button>
-              <button
-                aria-label="Detener"
-                disabled={!active}
-                onClick={() => command("stop")}
-              >
-                <Square size={13} />
               </button>
             </div>
             <span>

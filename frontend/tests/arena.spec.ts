@@ -44,7 +44,16 @@ test("step mode tic-tac-toe only acts on demand", async ({ page }) => {
   await expect(page.getByText("Las probabilidades aparecerán")).toBeVisible();
   await page.getByRole("button", { name: "Una decisión" }).click();
   await expect(page.locator(".distribution")).toBeVisible();
-  await page.getByRole("button", { name: "Detener", exact: true }).click();
+  const stop = page
+    .locator(".run-header")
+    .getByRole("button", { name: "Detener", exact: true });
+  await expect(stop).toHaveText("Detener");
+  await stop.click();
+  await expect(page.locator(".run-panel .status")).toHaveText("Detenido");
+  await expect(stop).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Una decisión" }),
+  ).toBeDisabled();
 });
 
 test("ticket classification and replay", async ({ page }) => {

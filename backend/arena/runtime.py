@@ -145,8 +145,10 @@ class Run:
                         else:
                             self.pending_timings.pop(item.get("request_id"), None)
                             await self.emit(kind, **item)
-                    if not self.sim.process.is_alive():
+                    if self.status in ("running", "paused") and not self.sim.process.is_alive():
                         raise RuntimeError("El proceso de simulación terminó inesperadamente")
+                if self.status == "stopped":
+                    break
                 if self.current and self.current["state"].get("done"):
                     self.status = "completed"
                     break
@@ -310,7 +312,16 @@ class Run:
 
     async def control(self, command, action=None):
         if command == "stop":
+            if self.status not in ("preparing", "running", "paused"):
+                return
             self.status = "stopped"
+            self.pending_step = 0
+            # Stop physics immediately, even while a physical inference is still finishing.
+            if self.sim:
+                self.sim.stopping.set()
+            await self.emit("stopped")
+        elif self.status not in ("running", "paused"):
+            raise ValueError("La ejecución no está activa")
         elif command in ("pause", "resume"):
             self.paused = command == "pause"
             self.status = "paused" if self.paused else "running"
@@ -343,6 +354,6 @@ class Run:
 
     async def stop(self):
         if self.status in ("preparing", "running", "paused"):
-            self.status = "stopped"
+            await self.control("stop")
         if self.task:
             await self.task

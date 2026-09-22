@@ -164,3 +164,41 @@ async def test_default_budget_applies_remote_latency_actions_in_games(tmp_path):
             assert run.counts["applied"] > 0, dict(run.counts)
         finally:
             await store.close()
+
+
+async def test_stop_halts_physics_before_inflight_response_finishes(tmp_path):
+    import pytest
+
+    class Blocked(ReferenceAdapter):
+        def __init__(self):
+            super().__init__()
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def decide(self, request):
+            self.entered.set()
+            await self.release.wait()
+            return await super().decide(request)
+
+    adapter = Blocked()
+    store = Store(tmp_path)
+    store.start()
+    run = Run(RunConfig(scenario="tetris"), adapter, store, asyncio.Semaphore(1))
+    try:
+        await run.start()
+        await asyncio.wait_for(adapter.entered.wait(), 5)
+        await run.control("stop")
+        await wait_until(lambda: not run.sim.process.is_alive())
+        assert not run.task.done()  # Physical call is still pending, physics has stopped.
+        assert run.status == "stopped"
+        with pytest.raises(ValueError, match="no está activa"):
+            await run.control("resume")
+        adapter.release.set()
+        await run.task
+        assert run.counts["applied"] == 0
+        assert run.counts["accepted"] == 1
+        assert run.counts["stopped"] == 1
+    finally:
+        adapter.release.set()
+        await run.stop()
+        await store.close()

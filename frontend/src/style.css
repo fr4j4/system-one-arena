@@ -1954,3 +1954,26 @@ main {
     max-height: 340px;
   }
 }
+
+.run-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stop-run-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 9px 14px;
+  color: #fca5a5;
+  border: 1px solid #a34444;
+  background: #391f29;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.stop-run-button:hover:not(:disabled) {
+  background: #572832;
+}
+.stop-run-button:disabled {
+  opacity: 0.45;
+}
