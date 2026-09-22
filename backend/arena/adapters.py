@@ -90,6 +90,22 @@ def _check_laya_budget(agent, state, questions):
             raise ValueError(f"{key}: state token budget exceeded; shorten state or configure LAYA_MAX_LEN")
 
 
+def _single_option_answers(payload):
+    """Laya 0.3.4 crashea con 1 opción: forward() hace topk(2) sobre softmax de k=1
+    (RuntimeError: selected index k out of range). Con una única opción la respuesta
+    es determinista (prob 1.0), así que se responde sin inferir. Devuelve None si
+    hay alguna pregunta que sí requiera el modelo."""
+    answers = {}
+    for key, q in payload["questions"].items():
+        if q.get("type") != "choice":
+            return None  # noul/score requieren inferencia
+        opts = list((q.get("criteria") or {}).keys())
+        if len(opts) != 1:
+            return None
+        answers[key] = {"type": "choice", "choice": opts[0], "probabilities": {opts[0]: 1.0}}
+    return answers or None
+
+
 def _laya_call(payload=None):
     start = time.perf_counter()
     agent = _load_laya()
@@ -109,6 +125,14 @@ def _laya_call(payload=None):
             "gpu": torch.cuda.get_device_name() if agent.device.type == "cuda" else None,
         }
     _check_laya_budget(agent, payload["state"], payload["questions"])
+    shortcut = _single_option_answers(payload)
+    if shortcut is not None:
+        return {
+            "model": "laya/deterministic-1option",
+            "answers": shortcut,
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+            "arena_timings": {"inference_ms": 0.0, "local_predict_ms": 0.0},
+        }
     prepared = time.perf_counter()
     raw = agent.predict(payload["state"], payload["questions"])
     raw["model"] = "laya/" + os.getenv("LAYA_CHECKPOINT", "multilingual")
