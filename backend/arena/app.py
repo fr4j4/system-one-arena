@@ -1,6 +1,7 @@
 """Combat-only local application. Legacy endpoints live on the legacy branch."""
 
 import asyncio
+import ipaddress
 import json
 import os
 from contextlib import asynccontextmanager
@@ -43,10 +44,31 @@ async def lifespan(app):
 app = FastAPI(title="System One — Eclipse Arena", version="2.0.0", lifespan=lifespan)
 
 
+def foreign(headers):
+    """Reject cross-origin requests and non-local Host names (DNS rebinding).
+
+    IP-literal hosts pass (LAN access to a 0.0.0.0 server): rebinding needs a DNS name in Host.
+    """
+    host = headers.get("host", "")
+    allowed = {"127.0.0.1", "localhost", "::1"} | {
+        h.strip().lower() for h in os.getenv("ARENA_ALLOWED_HOSTS", "").split(",") if h.strip()
+    }
+    try:
+        hostname = urlparse("//" + host).hostname
+    except ValueError:
+        return True
+    origin = headers.get("origin")
+    try:
+        ipaddress.ip_address(hostname or "")
+        literal = True
+    except ValueError:
+        literal = False
+    return not (literal or hostname in allowed) or bool(origin and urlparse(origin).netloc != host)
+
+
 @app.middleware("http")
 async def local_guard(request: Request, call_next):
-    origin = request.headers.get("origin")
-    if origin and urlparse(origin).netloc != request.headers.get("host"):
+    if foreign(request.headers):
         return JSONResponse(status_code=403, content={"detail": "Cross-origin access is disabled"})
     try:
         size = int(request.headers.get("content-length", "0"))
@@ -176,8 +198,7 @@ async def export(key: str):
 
 @app.websocket("/api/v2/matches/{key}/live")
 async def live(ws: WebSocket, key: str):
-    origin = ws.headers.get("origin")
-    if origin and urlparse(origin).netloc != ws.headers.get("host"):
+    if foreign(ws.headers):
         await ws.close(code=1008)
         return
     try:
@@ -193,7 +214,12 @@ async def live(ws: WebSocket, key: str):
 
     async def receive():
         while True:
-            data = await ws.receive_json()
+            try:
+                data = json.loads(await ws.receive_text())
+            except (ValueError, KeyError, TypeError):
+                continue
+            if not isinstance(data, dict):
+                continue
             if data.get("kind") == "input" and controller:
                 try:
                     seq = data.get("seq")
@@ -246,6 +272,9 @@ async def create_series(config: SeriesConfig):
         raise HTTPException(422, str(exc)) from exc
     series = Series(config, app.state.registry, app.state.store)
     app.state.series[series.id] = series
+    finished = [k for k, s in app.state.series.items() if s.task and s.task.done()]
+    for key in finished[: max(0, len(app.state.series) - 20)]:
+        del app.state.series[key]
     series.task = asyncio.create_task(series.run())
     return series.view()
 

@@ -114,36 +114,3 @@ def normalize(raw: dict, request: DecisionRequest, model: str) -> DecisionResult
         usage=raw.get("usage", {}),
         raw=raw,
     )
-
-
-class RunConfig(StrictModel):
-    scenario: str = "snake"
-    provider: str = "simulated"
-    player2_provider: str = "reference"
-    best_of: Literal[1, 3, 5] = 3
-    round_seconds: int = Field(default=45, ge=5, le=120)
-    mode: Literal["realtime", "step"] = "realtime"
-    seed: int = Field(default=42, ge=0, le=2147483647)
-    decision_hz: float = Field(default=10, ge=1, le=30)
-    budget_ms: int = Field(default=1000, ge=10, le=60000)
-    max_state_age_ms: int = Field(default=1500, ge=10, le=60000)
-    speed: float = Field(default=1, ge=0.1, le=3)
-    representation: Literal["direct", "enriched"] = "direct"
-    controller: Literal["model", "human"] = "model"
-    request_timeout_ms: int = Field(default=30000, ge=10, le=60000)
-    sample_size: int | None = Field(default=25, ge=1, le=10000)
-    sampling: Literal["random", "balanced"] = "random"
-    difficulty: Literal["all", "claro", "difícil", "ambiguo"] = "all"
-
-    @property
-    def execution(self):
-        if self.scenario == "tic-tac-toe":
-            return "turns"
-        if self.scenario in ("snake", "pong", "tetris", "fighting", "space-invaders"):
-            return "realtime"
-        return "batch"
-
-    options: dict[str, Any] = {}
-    dataset: list[dict[str, Any]] | None = Field(default=None, max_length=10000)
-    graph: dict[str, Any] | None = None
-    max_seconds: int = Field(default=180, ge=1, le=3600)

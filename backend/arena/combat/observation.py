@@ -1,5 +1,7 @@
 """Only observable tactical information crosses the model boundary."""
 
+import hashlib
+
 from arena.protocol import Question
 
 from .content import MOVES, ROUTES, SIGNATURES
@@ -132,7 +134,7 @@ def reference(state, actions, style="reference"):
         preferred = "ultimate"
     elif enemy["action"].startswith("guard") and distance < 0.9:
         preferred = "throw"
-    elif distance < 1.4:
+    elif distance < 1.2:  # combo reach; wider just whiffs in place
         preferred = (
             "combo_air"
             if me["energy"] >= 10 and me["hp"] < 600
@@ -145,7 +147,10 @@ def reference(state, actions, style="reference"):
     elif me["energy"] < 35 and distance > 4:
         preferred = "charge"
     elif me["energy"] >= 35 and distance > 4:
-        preferred = "beam"
+        # Seeded per-player coin (25%): a reference mirror otherwise beams in lockstep into a
+        # zero-energy clash that always ties, and the round times out untouched.
+        key = f"{state.get('seed')}:{state['player_id']}:{state['round']}:{state['time']}"
+        preferred = "dash_forward" if hashlib.sha256(key.encode()).digest()[0] < 64 else "beam"
     elif distance > 3:
         preferred = "combo_chase"
     else:

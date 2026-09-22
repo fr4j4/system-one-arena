@@ -3,6 +3,7 @@ import time
 import pytest
 from arena.app import app
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 
 @pytest.fixture
@@ -10,6 +11,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("COMBAT_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("LAYA_ENABLED", "false")
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("ARENA_ALLOWED_HOSTS", "testserver")
     with TestClient(app) as c:
         yield c
 
@@ -103,3 +105,46 @@ def test_human_input_ack_and_disconnect_pause(client):
     assert (
         client.post(f"/api/v2/matches/{key}/control", json={"command": "stop"}).json()["status"] == "stopped"
     )
+
+
+def test_foreign_host_rejected_on_http_and_websocket(client):
+    assert client.get("/api/v2/health").status_code == 200
+    assert client.get("/api/v2/health", headers={"host": "localhost:8000"}).status_code == 200
+    assert client.get("/api/v2/health", headers={"host": "[::1]:8000"}).status_code == 200
+    lan = {"host": "192.168.1.5:5173", "origin": "http://192.168.1.5:5173"}
+    assert client.get("/api/v2/health", headers=lan).status_code == 200
+    spoof = {"host": "192.168.1.5:5173", "origin": "http://rebind.attacker.example"}
+    assert client.get("/api/v2/health", headers=spoof).status_code == 403
+    evil = {"host": "rebind.attacker.example:8000", "origin": "http://rebind.attacker.example:8000"}
+    assert client.get("/api/v2/health", headers=evil).status_code == 403
+    key = client.post("/api/v2/matches", json={"max_seconds": 5}).json()["id"]
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(f"/api/v2/matches/{key}/live", headers=evil) as ws:
+            ws.receive_json()
+    client.post(f"/api/v2/matches/{key}/control", json={"command": "stop"})
+
+
+def test_malformed_websocket_messages_are_ignored(client):
+    key = client.post(
+        "/api/v2/matches",
+        json={
+            "mode": "training",
+            "players": [{"controller": "human"}, {"model_profile_id": "dummy", "fighter_id": "flux"}],
+        },
+    ).json()["id"]
+    with client.websocket_connect(f"/api/v2/matches/{key}/live?role=controller") as ws:
+        for _ in range(100):
+            e = ws.receive_json()
+            if e["kind"] == "snapshot" and e["state"]["phase"] == "active":
+                break
+        ws.send_text("not json")
+        ws.send_text("[]")
+        ws.send_bytes(b"\x00")
+        ws.send_json({"kind": "input", "player": 0, "seq": 1, "action": "forward"})
+        for _ in range(200):
+            e = ws.receive_json()
+            if e["kind"] == "input_ack":
+                break
+        assert e["kind"] == "input_ack"
+        assert client.get("/api/v2/matches/" + key).json()["status"] == "running"
+    client.post(f"/api/v2/matches/{key}/control", json={"command": "stop"})

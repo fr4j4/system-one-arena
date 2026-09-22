@@ -14,14 +14,6 @@ from arena.protocol import normalize
 class Adapter:
     id = "base"
 
-    def capabilities(self):
-        return {
-            "id": self.id,
-            "types": ["choice", "ordinal", "boolean_probability"],
-            "probabilities": True,
-            "internal_timings": False,
-        }
-
     async def warmup(self):
         return {"ready": True}
 
@@ -148,14 +140,6 @@ class LayaAdapter(Adapter):
     def __init__(self):
         self.pool = None
         self.lock = asyncio.Lock()
-
-    def capabilities(self):
-        return {
-            **super().capabilities(),
-            "internal_timings": True,
-            "resident": True,
-            "checkpoint": os.getenv("LAYA_CHECKPOINT", "multilingual"),
-        }
 
     def _pool(self):
         if os.getenv("LAYA_ENABLED", "false").lower() != "true":

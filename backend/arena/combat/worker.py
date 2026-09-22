@@ -21,8 +21,13 @@ def worker(config, incoming, outgoing, stopping):
         try:
             outgoing.put_nowait(data)
         except queue.Full:
-            if data["kind"] != "snapshot":
-                outgoing.put(data, timeout=0.2)
+            # Snapshots are superseded 1/30s later; everything else waits for room or shutdown.
+            while data["kind"] != "snapshot" and not stopping.is_set():
+                try:
+                    outgoing.put(data, timeout=0.2)
+                    return
+                except queue.Full:
+                    pass
 
     def snapshot():
         emit(

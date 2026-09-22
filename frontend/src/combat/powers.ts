@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import type { Frame } from "./types";
-const colors: Record<string, number> = {
-  ember: 0xff8b51,
-  flux: 0x69dcff,
-  terra: 0xf3c77c,
-  nyx: 0xc0a1ff,
+/** Single source of character colors (VFX, auras, sparks, hurt tint). */
+export const COLORS: Record<string, number> = {
+  ember: 0xff8655,
+  flux: 0x6adeff,
+  terra: 0xf2cf77,
+  nyx: 0xc2a3ff,
 };
 /** Original character-specific VFX, driven exclusively by the authoritative phase. */
 export function createPowers(scene: THREE.Scene, characters: string[]) {
@@ -12,7 +13,7 @@ export function createPowers(scene: THREE.Scene, characters: string[]) {
     const root = new THREE.Group();
     scene.add(root);
     const material = new THREE.MeshBasicMaterial({
-      color: colors[character],
+      color: COLORS[character],
       transparent: true,
       opacity: 0.68,
       blending: THREE.AdditiveBlending,

@@ -65,7 +65,8 @@ class Series:
             await self.store.save_setting(self.id, self.view())
 
     async def stop(self):
-        self.status = "stopped"
+        if self.status == "running":
+            self.status = "stopped"
         if self.current:
             await self.current.stop()
         if self.task:

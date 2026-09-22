@@ -17,7 +17,7 @@ jobs:
       - run: uv run --no-sync pytest -q
       - run: uv run --no-sync ruff check --config pyproject.toml backend
       - run: uv run --no-sync ruff format --check --config pyproject.toml backend
-      - run: npm ci && npm run build
+      - run: npm ci && npm run build && npm run test:unit
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend

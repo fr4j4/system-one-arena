@@ -42,6 +42,7 @@ Respuesta del proveedor: `{"answers":{"action":{"type":"choice","choice":"bolt"}
 - 3 consultas/s máximas por jugador; nunca más de una llamada física pendiente en cada slot. Los slots comparten un semáforo por recurso del proveedor; Laya CPU/GPU serializa por dispositivo.
 - 800 ms de plazo en modo nativo; máximo 1000 ms de antigüedad. El modo experimental de ventanas comunes aplica al cerrar 800 ms y se reporta separado.
 - Cambio de ronda, pulso, pausa/reanudación, reinicio o cinemática incrementa `epoch`. Se revalida contexto, plazo, legalidad y estado del encuentro antes de aplicar.
+- Tras enviar una acción, el slot no vuelve a consultar hasta recibir su ack del proceso de combate y un snapshot posterior. Sin esto, la siguiente petición salía del último snapshot, que aún no reflejaba la acción recién aplicada (Jev en neutral cuando ya ejecutaba `heavy`/`bolt`), y la respuesta llegaba ilegal. No se relaja ninguna validación: contexto, plazo, antigüedad y legalidad se revalidan igual.
 - Una respuesta tardía se registra y se descarta. Esperar a su finalización física evita saturar el proveedor con llamadas abandonadas. Detener congela inmediatamente la simulación y prohíbe nuevos envíos.
 - Tres errores consecutivos o cinco segundos sin acción útil pausan con diagnóstico visible. Un proveedor nunca se reemplaza silenciosamente por la referencia.
 - Avance/retroceso duran hasta400ms, guardia600ms, carga800ms; humano refresca mientras mantiene el control. No se consulta durante acciones comprometidas sin opciones legales.

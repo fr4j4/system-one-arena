@@ -16,7 +16,7 @@ make build
 make run
 ```
 
-Abre **http://127.0.0.1:8000**. Los controladores de referencia funcionan sin credenciales y están identificados como **sin IA**. Selecciona **Jev** en uno o ambos slots para usar el proveedor real. La vista precarga los personajes antes de habilitar el combate.
+Abre **http://127.0.0.1:8000**. Desde otra máquina de la red local usa la IP (`http://192.168.x.y:5173` con `npm run dev`, o el puerto de uvicorn con `--host 0.0.0.0`); los nombres de host distintos de `localhost` (p. ej. `mi-mac.local`) se rechazan con 403 salvo que los añadas a `ARENA_ALLOWED_HOSTS=mi-mac.local,otro` en `.env`. Los controladores de referencia funcionan sin credenciales y están identificados como **sin IA**. Selecciona **Jev** en uno o ambos slots para usar el proveedor real. La vista precarga los personajes antes de habilitar el combate.
 
 - **Arena:** modelo/modelo, humano/modelo o humano/referencia; mejor de 1, 3 o 5, rondas de 30–120 s.
 - **Entrenar:** distancia de combo, defensa, aire, esquina, energía máxima, choque de rayos y remates. Reinicio y avance de un frame en pausa.

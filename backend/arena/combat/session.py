@@ -3,7 +3,7 @@
 import asyncio
 import copy
 import time
-from collections import Counter, deque
+from collections import Counter
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -31,12 +31,15 @@ class Match:
         self.task = None
         self.created_at = datetime.now(UTC).isoformat()
         self.subscribers = set()
-        self.events = deque(maxlen=300)
         self.paused = False
         self.active_time = 0.0
         self.calls = [None, None]
         self.last_call = [0.0, 0.0]
         self.last_epoch = [None, None]
+        # An action sent but not yet acked, or acked but not yet in a snapshot, makes the
+        # latest packet stale for that slot: querying on it wastes a call on a past state.
+        self.awaiting = [None, None]
+        self.unsynced = [False, False]
         self.stats = [
             dict(
                 counts=Counter(),
@@ -95,7 +98,6 @@ class Match:
     async def emit(self, kind, save=True, **data):
         self.seq += 1
         event = dict(seq=self.seq, kind=kind, match_id=self.id, at=time.time(), **data)
-        self.events.append(event)
         if save:
             await self.store.event(self.id, event)
         for subscriber in list(self.subscribers):
@@ -155,6 +157,7 @@ class Match:
                     if kind == "snapshot":
                         self.packet = packet
                         self.snapshot = packet["state"]
+                        self.unsynced = [False, False]
                         save = now - self.last_snapshot_saved >= 0.1 or self.snapshot["done"]
                         if save:
                             self.last_snapshot_saved = now
@@ -168,6 +171,9 @@ class Match:
                             ] += 1
                         if kind in ("applied", "rejected"):
                             i = int(packet["player_id"][1]) - 1
+                            if packet.get("request_id") == self.awaiting[i]:
+                                self.awaiting[i] = None
+                                self.unsynced[i] = True
                             self.stats[i]["counts"][kind] += 1
                             if kind == "applied":
                                 self.stats[i]["last_useful"] = now
@@ -197,6 +203,8 @@ class Match:
                         or self.packet.get("paused")
                         or slot.controller == "human"
                         or self.calls[i]
+                        or self.awaiting[i]
+                        or self.unsynced[i]
                     ):
                         continue
                     view = self.packet["views"][i]
@@ -225,12 +233,15 @@ class Match:
             self.error = str(exc)
             await self.emit("error", error=self.error)
         finally:
-            await self.emit("status", status=self.status, error=self.error)
-            if self.process:
-                self.process.stopping.set()
-            await asyncio.gather(*(c for c in self.calls if c), return_exceptions=True)
-            if self.process:
-                await asyncio.to_thread(self.process.close)
+            try:
+                await self.emit("status", status=self.status, error=self.error)
+            finally:
+                # Cleanup must survive a dead store writer, or the combat process leaks.
+                if self.process:
+                    self.process.stopping.set()
+                await asyncio.gather(*(c for c in self.calls if c), return_exceptions=True)
+                if self.process:
+                    await asyncio.to_thread(self.process.close)
             for event in self.sealed:
                 await self.publish_decision(**event)
             self.sealed = []
@@ -290,6 +301,9 @@ class Match:
                 await self.emit("expired", player_id=f"p{i + 1}", request_id=request.request_id)
                 result = await future
             end = time.perf_counter_ns()
+            # Free the provider before pacing sleeps so a shared gate never idles.
+            gate.release()
+            acquired = False
             latency = (end - start) / 1e6
             s["latencies"].append(latency)
             s["latencies"] = s["latencies"][-10000:]
@@ -333,6 +347,8 @@ class Match:
                     ),
                 )
             )
+            # No await since send: the ack cannot have been read yet.
+            self.awaiting[i] = request.request_id
         except TimeoutError:
             s["counts"]["expired"] += 1
             await self.emit("expired", player_id=f"p{i + 1}", request_id=request.request_id)
