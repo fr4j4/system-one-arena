@@ -87,7 +87,9 @@ def simulation_main(config, episode, incoming, outgoing, stopping):
                     if time.perf_counter_ns() > hold_until:
                         game.neutral()
                     game.tick(config["speed"] / 60)
-                    seq += 1
+                    # In turn-based play, elapsed time does not supersede the board.
+                    if game.name != "tic-tac-toe":
+                        seq += 1
             next_tick = now + 1 / 60
         if now - last_publish >= 0.05:
             emit(snapshot())

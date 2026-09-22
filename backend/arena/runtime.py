@@ -306,6 +306,11 @@ class Run:
             if self.failure_streak >= 3:
                 self.error, self.status = str(exc), "failed"
         finally:
+            # Retry an unchanged turn after expiry/failure, but wait for the simulation
+            # acknowledgement when a successful action is already queued.
+            if self.config.scenario == "tic-tac-toe" and rid not in self.pending_timings:
+                if rid not in self.applied_ids:
+                    self.last_submitted_seq = -1
             self.inflight = None
             if lock_acquired:
                 self.gate.release()

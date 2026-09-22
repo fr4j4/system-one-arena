@@ -202,3 +202,23 @@ async def test_stop_halts_physics_before_inflight_response_finishes(tmp_path):
         adapter.release.set()
         await run.stop()
         await store.close()
+
+
+async def test_realtime_tic_tac_toe_finishes_with_delayed_decisions(tmp_path):
+    store = Store(tmp_path)
+    store.start()
+    run = Run(
+        RunConfig(scenario="tic-tac-toe", max_seconds=4),
+        ReferenceAdapter("simulated", 150),
+        store,
+        asyncio.Semaphore(1),
+    )
+    try:
+        await run.start()
+        await run.task
+        assert run.current["state"]["done"]
+        assert run.counts["applied"] >= 3
+        events = await store.events(run.id)
+        assert not any(e.get("reason") == "superseded" for e in events)
+    finally:
+        await store.close()
