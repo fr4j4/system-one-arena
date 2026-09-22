@@ -1,0 +1,56 @@
+name: system-one-arena
+x-arena: &arena
+  ports:
+    - "127.0.0.1:${ARENA_PORT:-8000}:8000"
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - arena-data:/app/data
+    - arena-models:/app/models
+  init: true
+  stop_grace_period: 70s
+
+services:
+  arena:
+    <<: *arena
+    profiles: [lite]
+    build:
+      context: .
+      target: base
+    environment:
+      ARENA_DATA_DIR: /app/data
+      LAYA_ENABLED: "false"
+
+  arena-cpu:
+    <<: *arena
+    profiles: [cpu]
+    build:
+      context: .
+      target: cpu
+    environment:
+      ARENA_DATA_DIR: /app/data
+      LAYA_ENABLED: "true"
+      LAYA_DEVICE: cpu
+
+  arena-gpu:
+    <<: *arena
+    profiles: [gpu]
+    build:
+      context: .
+      target: cuda
+    environment:
+      ARENA_DATA_DIR: /app/data
+      LAYA_ENABLED: "true"
+      LAYA_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  arena-data:
+  arena-models:
