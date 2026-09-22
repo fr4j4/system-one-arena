@@ -100,77 +100,6 @@ QUESTIONS = {
     },
 }
 
-# Expected labels are stored alongside the input, never sent to a provider.
-SAMPLES = {
-    "tickets": [
-        (
-            "Nos cobraron dos veces. Necesito el reembolso de la factura.",
-            {"department": "billing", "priority": 1, "escalate": 0},
-        ),
-        (
-            "All users cannot sign in. Production is down right now.",
-            {"department": "technical", "priority": 2, "escalate": 1},
-        ),
-        (
-            "¿Cuánto cuesta el plan anual para cinco personas?",
-            {"department": "sales", "priority": 0, "escalate": 0},
-        ),
-        (
-            "Hola, necesito ayuda con mi cuenta, no sé qué ocurre.",
-            {"department": ["other", "technical"], "priority": [0, 1], "escalate": 0},
-        ),
-    ],
-    "email": [
-        ("Please send the signed agreement before Friday.", {"intent": "request", "reply": 1}),
-        (
-            "Adjunto el resumen informativo de la semana. No se requiere respuesta.",
-            {"intent": "information", "reply": 0},
-        ),
-        ("Limited offer! Buy our new shoes at 50% off.", {"intent": "promotion", "reply": 0}),
-    ],
-    "spam": [
-        ("You won a million dollars! Send your password to claim now.", {"spam": 1, "phishing": 1}),
-        ("Mañana nos reunimos a las 10. Saludos, Ana.", {"spam": 0, "phishing": 0}),
-        ("Descuento exclusivo en zapatos. Compra ahora, oferta limitada.", {"spam": 1, "phishing": 0}),
-        (
-            "Soy tu banco: envía tu contraseña por email para evitar el bloqueo.",
-            {"spam": [0, 1], "phishing": 1},
-        ),
-    ],
-    "moderation": [
-        ("No estoy de acuerdo, pero gracias por explicarlo.", {"action": "allow"}),
-        ("You are an idiot and I will hurt you.", {"action": "block"}),
-        ("Eso fue una tontería... o quizás entendí mal.", {"action": ["allow", "review"]}),
-    ],
-    "events": [
-        (
-            "Database error: replication lag 120 seconds, elevated failure rate.",
-            {"relevant": 1, "anomaly": 1},
-        ),
-        ("Health check OK. CPU 12%. Scheduled backup completed.", {"relevant": 0, "anomaly": 0}),
-        ("Error de autenticación: 900 intentos fallidos en un minuto.", {"relevant": 1, "anomaly": 1}),
-    ],
-    "hierarchy": [
-        ("Duplicate invoice payment, please refund.", {"category": "billing", "subcategory": "refund"}),
-        ("No puedo iniciar sesión, error al entrar.", {"category": "technical", "subcategory": "login"}),
-        ("Quiero conocer el precio del plan enterprise.", {"category": "sales", "subcategory": "pricing"}),
-    ],
-    "incidents": [
-        ("Production database offline, all users blocked.", {"severity": 2, "team": "platform"}),
-        (
-            "Unauthorized access found in an admin account; service remains available.",
-            {"severity": 0, "team": "security"},
-        ),
-        ("Usuario solicita ayuda para actualizar su perfil.", {"severity": 0, "team": "support"}),
-    ],
-    "routing": [
-        ("Calculate 19 times 43.", {"tool": "calculator"}),
-        ("Agenda una reunión el lunes a las 9.", {"tool": "calendar"}),
-        ("Find documentation about WebSocket.", {"tool": "search"}),
-        ("Haz eso que te comenté antes.", {"tool": "human"}),
-    ],
-}
-
 SUBCATEGORIES = {
     "billing": {"refund": "Refund or duplicate charge", "invoice": "Invoice question"},
     "technical": {"login": "Login or access problem", "outage": "Service outage"},
@@ -297,22 +226,12 @@ def validate_graph(graph):
 
 
 def fixtures(name):
-    name = "tickets" if name == "workflow" else name
-    if name in ("tickets", "email", "spam"):
-        return corpus(name)
-    return [
-        {
-            "id": f"{name}-{i}",
-            "state": {"text": text},
-            "expected": expected,
-            "metadata": {
-                "source": "Sintético · ejemplos iniciales",
-                "version": "starter-v1",
-                "difficulty": "claro",
-            },
-        }
-        for i, (text, expected) in enumerate(SAMPLES[name])
-    ]
+    # Workflow support uses the same ticket inputs and labels as the support graph.
+    rows = corpus("tickets" if name == "workflow" else name)
+    if name == "workflow":
+        for row in rows:
+            row["id"] = row["id"].replace("tickets-", "workflow-", 1)
+    return rows
 
 
 def validate_dataset(items):

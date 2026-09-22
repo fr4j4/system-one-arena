@@ -4,6 +4,8 @@ import copy
 import random
 from collections import Counter, defaultdict
 
+from arena.scenarios.domain_datasets import domain_corpus
+
 VERSION = "synthetic-v2"
 # Context is part of the decision: 24 distinct intents × 10 distinct constraints per corpus.
 TICKETS = [
@@ -255,7 +257,7 @@ SPAM_CONTEXT = [
 def corpus(name):
     rows = []
     if name not in ("tickets", "email", "spam"):
-        return rows
+        return domain_corpus(name)
     topics = TICKETS if name == "tickets" else EMAIL_TOPICS if name == "email" else SPAM_TOPICS
     contexts = TICKET_CONTEXT if name == "tickets" else EMAIL_CONTEXT if name == "email" else SPAM_CONTEXT
     for i, topic in enumerate(topics):

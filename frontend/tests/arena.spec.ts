@@ -212,3 +212,34 @@ test("CSV import preserves text, labels and unlabeled cases", async ({
   await expect(page.locator(".case-table tbody tr")).toHaveCount(1);
   await expect(page.locator(".case-table tbody tr")).toContainText("custom-2");
 });
+
+test("every business dataset has 240 cases and expanded moderation runs", async ({
+  page,
+  request,
+}) => {
+  for (const name of [
+    "tickets",
+    "email",
+    "spam",
+    "moderation",
+    "events",
+    "hierarchy",
+    "incidents",
+    "routing",
+    "workflow",
+  ]) {
+    const response = await request.get("/api/fixtures/" + name);
+    expect(response.ok()).toBeTruthy();
+    const items = await response.json();
+    expect(items).toHaveLength(240);
+    expect(new Set(items.map((r: any) => r.id)).size).toBe(240);
+  }
+  await page.getByRole("button", { name: /Decisiones 9/ }).click();
+  await page.getByRole("button", { name: /Moderación/ }).click();
+  await expect(page.getByText(/25 de 240 casos disponibles/)).toBeVisible();
+  await page.getByLabel("Tamaño de muestra").selectOption("100");
+  await page.getByLabel("Proveedor", { exact: true }).selectOption("reference");
+  await page.getByRole("button", { name: "Iniciar ejecución" }).click();
+  await expect(page.locator(".run-panel .status")).toHaveText("Completado");
+  await expect(page.getByText("100 / 100 procesados")).toBeVisible();
+});

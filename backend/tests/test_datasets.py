@@ -9,7 +9,10 @@ from arena.scenarios.datasets import sample
 from arena.storage import Store
 
 
-@pytest.mark.parametrize("name", ["tickets", "email", "spam"])
+@pytest.mark.parametrize(
+    "name",
+    ["tickets", "email", "spam", "moderation", "events", "hierarchy", "incidents", "routing", "workflow"],
+)
 def test_versioned_corpus_has_unique_cases_and_disclosed_families(name):
     rows = fixtures(name)
     assert len(rows) == 240
@@ -130,3 +133,49 @@ async def test_batch_timeout_creates_one_error_per_case_without_retries(tmp_path
         assert run.counts["applied"] == 0
     finally:
         await store.close()
+
+
+def test_expanded_domain_labels_match_question_contracts():
+    from arena.scenarios.business import QUESTIONS, SUBCATEGORIES
+
+    for name in ("moderation", "events", "hierarchy", "incidents", "routing"):
+        for row in fixtures(name):
+            for key, expected in row["expected"].items():
+                if key == "subcategory":
+                    assert expected in SUBCATEGORIES[row["expected"]["category"]]
+                    continue
+                question = QUESTIONS[name][key]
+                values = expected if isinstance(expected, list) else [expected]
+                if question.type == "choice":
+                    assert all(value in question.criteria for value in values)
+                elif question.type == "ordinal":
+                    assert all(
+                        isinstance(value, int) and 0 <= value < len(question.criteria) for value in values
+                    )
+                else:
+                    assert all(value in (0, 1) for value in values)
+            assert "rationale" not in row["state"]
+
+
+def test_expanded_domains_cover_all_decisions_and_boundary_cases():
+    from arena.scenarios.business import QUESTIONS
+
+    for name in ("moderation", "events", "incidents", "routing"):
+        rows = fixtures(name)
+        for key, q in QUESTIONS[name].items():
+            values = {
+                v
+                for r in rows
+                for v in (
+                    r["expected"][key] if isinstance(r["expected"][key], list) else [r["expected"][key]]
+                )
+            }
+            assert values == (
+                set(q.criteria)
+                if q.type == "choice"
+                else set(range(len(q.criteria)))
+                if q.type == "ordinal"
+                else {0, 1}
+            )
+    assert any(r["expected"] == {"relevant": 0, "anomaly": 1} for r in fixtures("events"))
+    assert any(r["expected"] == {"severity": 0, "team": "security"} for r in fixtures("incidents"))

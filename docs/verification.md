@@ -56,3 +56,11 @@ A regression test with 300 ms provider latency failed before the change and pass
 - Production TypeScript/Vite build, Ruff lint and formatting pass. The light results table was visually inspected against the existing Arena design.
 - All 9 browser tests pass: original game/step/history/graph/benchmark/mobile paths plus scenario-specific controls, A/B 100-case alignment and pagination, and CSV import with unlabeled-case filtering.
 - Isolated real Jev verification completed five tickets, five emails and five spam cases with zero technical errors and recorded per-case latencies. Observed provider p50 was approximately 283/286/361 ms respectively; these are integration smoke checks, not controlled quality/speed benchmarks. A separate UI smoke run processed 14 tickets before being stopped externally.
+
+## 2026-09-22: expand every remaining business corpus
+
+Moderation, events, hierarchy, incidents and routing now each supply 240 versioned synthetic cases (24 disclosed families × 10 variants). Tickets/email/spam remain at 240; support workflows reuse the 240 ticket inputs with distinct IDs. No business scenario falls back to the former 3–4 examples; the obsolete starter registry was removed.
+
+All nine corpora have unique IDs and texts within each corpus, rationale metadata and clear/difficult/ambiguous cases. Contract checks cover every choice option, boolean outcome, severity level and all hierarchical subcategories. Boundary cases distinguish anomaly from operator attention, security risk from service outage, reported quotations from direct abuse, and active from withdrawn requests. These remain synthetic contextual compositions, not independent production observations.
+
+Validation: 88 backend tests pass; lint, formatting and production build pass. Browser regression checks all nine fixture endpoints and processes 100 moderation cases in an isolated server.

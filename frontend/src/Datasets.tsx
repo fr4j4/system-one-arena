@@ -187,10 +187,10 @@ export default function Datasets({
       </div>
       {notice ? <p className="notice">{notice}</p> : null}
       <p className="sample-note">
-        Tickets, correo y spam: 240 casos sintéticos por dataset (24 familias ×
-        10 contextos). Las variantes no son observaciones independientes. Los
-        demás escenarios conservan sus ejemplos iniciales y admiten datasets
-        propios.
+        Todos los escenarios incluyen 240 casos sintéticos (24 familias × 10
+        contextos). Las variantes no son observaciones independientes. El árbol
+        de soporte reutiliza las entradas de tickets. Puedes importar tus
+        propios datasets para evaluar datos representativos.
       </p>
       <p>
         CSV: columnas <code>id,text,expected.department,expected.priority</code>
