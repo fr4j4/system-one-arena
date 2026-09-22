@@ -288,6 +288,16 @@ export default function RunPanel({
           no cuenta como inferencia.
         </div>
       ) : null}
+      {(m.counts.expired ?? 0) > 0 && (
+        <div className="preparing-strip" role="status">
+          {m.counts.expired} decisiones descartadas por plazo o antigüedad.
+          Presupuesto: {run.config.budget_ms} ms; antigüedad máxima:{" "}
+          {run.config.max_state_age_ms} ms. Latencia p95:{" "}
+          {ms(m.provider_ms.p95)}. Si no hay movimientos, aumenta ambos límites
+          antes de iniciar otra ejecución. La frecuencia solicitada no reduce la
+          latencia del proveedor.
+        </div>
+      )}
       <div className="live-body">
         <div className="scene-column">
           {state &&

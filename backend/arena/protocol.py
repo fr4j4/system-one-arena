@@ -48,8 +48,8 @@ class DecisionRequest(StrictModel):
     state: dict[str, Any]
     questions: dict[str, Question]
     allowed_actions: list[str] = []
-    budget_ms: int = Field(default=100, ge=10, le=60000)
-    max_state_age_ms: int = Field(default=200, ge=10, le=60000)
+    budget_ms: int = Field(default=1000, ge=10, le=60000)
+    max_state_age_ms: int = Field(default=1500, ge=10, le=60000)
 
 
 class Answer(StrictModel):
@@ -122,8 +122,8 @@ class RunConfig(StrictModel):
     mode: Literal["realtime", "step"] = "realtime"
     seed: int = Field(default=42, ge=0, le=2147483647)
     decision_hz: float = Field(default=10, ge=1, le=30)
-    budget_ms: int = Field(default=100, ge=10, le=60000)
-    max_state_age_ms: int = Field(default=200, ge=10, le=60000)
+    budget_ms: int = Field(default=1000, ge=10, le=60000)
+    max_state_age_ms: int = Field(default=1500, ge=10, le=60000)
     speed: float = Field(default=1, ge=0.1, le=3)
     representation: Literal["direct", "enriched"] = "direct"
     controller: Literal["model", "human"] = "model"

@@ -146,3 +146,21 @@ async def test_provider_gate_does_not_overlap_physical_calls_after_expiry(tmp_pa
     assert adapter.maximum == 1
     assert run.counts["expired"] > 0 and run.counts["applied"] == 0
     await store.close()
+
+
+async def test_default_budget_applies_remote_latency_actions_in_games(tmp_path):
+    for scenario in ("snake", "tetris"):
+        store = Store(tmp_path / scenario)
+        store.start()
+        run = Run(
+            RunConfig(scenario=scenario, max_seconds=2),
+            ReferenceAdapter("simulated", 300),
+            store,
+            asyncio.Semaphore(1),
+        )
+        try:
+            await run.start()
+            await run.task
+            assert run.counts["applied"] > 0, dict(run.counts)
+        finally:
+            await store.close()

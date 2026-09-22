@@ -40,3 +40,9 @@ These are integration checks, **not** a statistically controlled Laya/Jev speed 
 - Generic chat-completions adapter is contract-validated but no third-party generic endpoint was configured for a live integration test.
 - History/replay reproduces recorded state snapshots, not an identical fresh provider response. Model APIs can change versions; actual result model IDs and all effective settings are stored.
 - Local Laya input truncation and CUDA-to-CPU fallback are explicitly detected/rejected. Larger state/option experiments may require documented budget overrides.
+
+## 2026-09-22: remote-provider game deadlines
+
+User traces showed 218 completed Jev Tetris responses and zero applied actions: every response exceeded the original 100 ms budget (observed p50 284 ms). Raised the explicit UI and protocol defaults to a 1000 ms budget and 1500 ms maximum state age; custom stricter limits still expire normally. The live panel now explains deadline/age discards and displays the configured limits alongside observed p95.
+
+A regression test with 300 ms provider latency failed before the change and passes for Snake and Tetris afterward. All 68 backend tests pass. Real Jev smoke runs applied 5 Snake actions and 11 Tetris actions, with observed p50 around 302/317 ms respectively. These checks establish action delivery, not game-playing quality.

@@ -81,7 +81,7 @@ Synthetic Spanish/English fixtures can be inspected in Datasets, edited as JSONL
 
 ## Live experiments
 
-- **Real time:** the world does not wait. Initial decision frequency 10 Hz, budget 100 ms, maximum state age 200 ms. Slower providers will visibly miss deadlines. Increase those values intentionally or slow the world; every setting is recorded.
+- **Real time:** the world does not wait. Initial decision frequency 10 Hz, budget 1000 ms, maximum state age 1500 ms. Slower providers will visibly miss deadlines. Increase those values intentionally or slow the world; every setting is recorded.
 - **Step mode:** click “Una decisión” to request one result and advance the world. Still enforces the selected budget.
 - **A/B:** choose a second provider in advanced options. Identical seed, independent trajectories; this is not a same-state accuracy comparison.
 - **Inspector:** exact input/schema, final probabilities, provider confidence, raw response, event timeline and measured durations. No simulated reasoning, internal attention maps or fake token streaming.
