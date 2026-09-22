@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Scene from "./Scene";
 import { Hud } from "./Hud";
 import {
@@ -10,6 +10,13 @@ import {
 } from "./types";
 import type { CombatAudio } from "./audio";
 const noop = () => {};
+const MARKER_PHASES = [
+  "clash",
+  "finish",
+  "finisher",
+  "round_over",
+  "cinematic",
+];
 export function Replay({
   catalog,
   settings,
@@ -61,6 +68,24 @@ export function Replay({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [playing, frames, speed, times]);
+  const markers = useMemo(
+    () =>
+      frames.flatMap((f, i) =>
+        (i === 0 || frames[i - 1].phase !== f.phase) &&
+        MARKER_PHASES.includes(f.phase)
+          ? [{ i, phase: f.phase, round: f.round }]
+          : [],
+      ),
+    [frames],
+  );
+  const characters = useMemo(
+    () => selected?.config.players.map((p) => p.fighter_id) ?? [],
+    [selected],
+  );
+  const hudMatch = useMemo(
+    () => (selected ? { ...selected, status: "replay" } : null),
+    [selected],
+  );
   const load = async (m: Match) => {
     const rev = ++revision.current;
     setLoading(true);
@@ -135,7 +160,7 @@ export function Replay({
               <div className="arena-stage replay-stage">
                 <Scene
                   frameRef={frameRef}
-                  characters={selected.config.players.map((p) => p.fighter_id)}
+                  characters={characters}
                   arena={selected.config.arena_id}
                   settings={settings}
                   audio={audio}
@@ -145,7 +170,7 @@ export function Replay({
                 <Hud
                   frame={frames[index]}
                   catalog={catalog}
-                  match={{ ...selected, status: "replay" }}
+                  match={hudMatch}
                   input={noop}
                 />
               </div>
@@ -203,26 +228,17 @@ export function Replay({
                 <a href={`/api/v2/matches/${selected.id}/export`}>Exportar</a>
               </div>
               <div className="replay-markers">
-                {frames.map((f, i) =>
-                  (i === 0 || frames[i - 1].phase !== f.phase) &&
-                  [
-                    "clash",
-                    "finish",
-                    "finisher",
-                    "round_over",
-                    "cinematic",
-                  ].includes(f.phase) ? (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setPlaying(false);
-                        setIndex(i);
-                      }}
-                    >
-                      {f.phase} · R{f.round}
-                    </button>
-                  ) : null,
-                )}
+                {markers.map((m) => (
+                  <button
+                    key={m.i}
+                    onClick={() => {
+                      setPlaying(false);
+                      setIndex(m.i);
+                    }}
+                  >
+                    {m.phase} · R{m.round}
+                  </button>
+                ))}
               </div>
             </>
           ) : (

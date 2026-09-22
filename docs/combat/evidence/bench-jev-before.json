@@ -1,0 +1,144 @@
+{
+  "subject": "jev",
+  "opponent": "reference",
+  "seconds": 30,
+  "pace": "native",
+  "characters": [
+    "ember",
+    "flux"
+  ],
+  "created_at": "2026-09-22T14:38:30-0300",
+  "total": {
+    "matches": 3,
+    "counts": {
+      "accepted": 91,
+      "completed": 91,
+      "applied": 65,
+      "expired": 1,
+      "rejected": 25,
+      "errors": 0
+    },
+    "rejected_by_reason": {
+      "illegal_action": 23,
+      "context_changed": 2
+    },
+    "applied_rate": 0.714,
+    "latency": {
+      "count": 91,
+      "p50": 277.979,
+      "p95": 349.864,
+      "p99": 481.335,
+      "mean": 294.057
+    },
+    "damage_dealt": 1245,
+    "damage_taken": 3138,
+    "results": {
+      "opponent": 2,
+      "draw": 1
+    },
+    "failed": 0
+  },
+  "matches": [
+    {
+      "pair": 0,
+      "side": "p1",
+      "subject": "ember",
+      "opponent": "flux",
+      "status": "completed",
+      "error": null,
+      "wall_seconds": 30.32,
+      "active_seconds": 30.0,
+      "model": "jev-1.13.0",
+      "counts": {
+        "accepted": 33,
+        "completed": 33,
+        "applied": 24,
+        "expired": 1,
+        "rejected": 8,
+        "errors": 0
+      },
+      "rejected_by_reason": {
+        "illegal_action": 7,
+        "context_changed": 1
+      },
+      "damage_dealt": 525,
+      "damage_taken": 1009,
+      "winner": "opponent",
+      "applied_rate": 0.727,
+      "latency": {
+        "count": 33,
+        "p50": 285.448,
+        "p95": 380.636,
+        "p99": 826.374,
+        "mean": 312.735
+      }
+    },
+    {
+      "pair": 0,
+      "side": "p2",
+      "subject": "ember",
+      "opponent": "flux",
+      "status": "completed",
+      "error": null,
+      "wall_seconds": 30.06,
+      "active_seconds": 30.0,
+      "model": "jev-1.13.0",
+      "counts": {
+        "accepted": 30,
+        "completed": 30,
+        "applied": 20,
+        "expired": 0,
+        "rejected": 10,
+        "errors": 0
+      },
+      "rejected_by_reason": {
+        "illegal_action": 9,
+        "context_changed": 1
+      },
+      "damage_dealt": 385,
+      "damage_taken": 1113,
+      "winner": "opponent",
+      "applied_rate": 0.667,
+      "latency": {
+        "count": 30,
+        "p50": 274.416,
+        "p95": 349.983,
+        "p99": 363.508,
+        "mean": 285.19
+      }
+    },
+    {
+      "pair": 1,
+      "side": "p1",
+      "subject": "flux",
+      "opponent": "ember",
+      "status": "completed",
+      "error": null,
+      "wall_seconds": 30.07,
+      "active_seconds": 30.0,
+      "model": "jev-1.13.0",
+      "counts": {
+        "accepted": 28,
+        "completed": 28,
+        "applied": 21,
+        "expired": 0,
+        "rejected": 7,
+        "errors": 0
+      },
+      "rejected_by_reason": {
+        "illegal_action": 7
+      },
+      "damage_dealt": 335,
+      "damage_taken": 1016,
+      "winner": "draw",
+      "applied_rate": 0.75,
+      "latency": {
+        "count": 28,
+        "p50": 279.872,
+        "p95": 323.502,
+        "p99": 331.11,
+        "mean": 281.542
+      }
+    }
+  ]
+}

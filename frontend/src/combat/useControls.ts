@@ -8,6 +8,9 @@ const HOLDS = new Set([
   "guard_low",
   "charge",
 ]);
+/** Most recently pressed hold-type action still held, or "" if none. */
+export const activeHold = (held: Iterable<string>) =>
+  [...held].reverse().find((a) => HOLDS.has(a)) ?? "";
 export function useControls(
   enabled: boolean,
   settings: Settings,
@@ -51,7 +54,8 @@ export function useControls(
           : action;
     };
     const down = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.matches("input,select,textarea")) return;
+      if ((e.target as Element | null)?.matches?.("input,select,textarea"))
+        return;
       if (e.code === "Escape") {
         e.preventDefault();
         latest.current.pause();
@@ -72,7 +76,12 @@ export function useControls(
       if (!held.has(e.code)) return;
       e.preventDefault();
       held.delete(e.code);
-      latest.current.input("neutral", true);
+      const remaining = activeHold(held.values());
+      if (remaining) latest.current.input(translate(remaining));
+      else {
+        lastHold = ""; // poll() would otherwise send the same release again
+        latest.current.input("neutral", true);
+      }
     };
     const release = () => {
       held.clear();
@@ -102,8 +111,7 @@ export function useControls(
         if (Math.abs(pad.axes[0] ?? 0) > 0.3)
           padHold = pad.axes[0] > 0 ? "forward" : "back";
       }
-      const keyHold =
-        [...held.values()].reverse().find((a) => HOLDS.has(a)) ?? "";
+      const keyHold = activeHold(held.values());
       const a = translate(padHold || keyHold);
       if (a && now - lastTime > 120) {
         latest.current.input(a);

@@ -80,7 +80,9 @@ export default function App() {
     [onError],
   );
   useControls(
-    game.match?.status === "running" && !showSettings,
+    game.match?.status === "running" &&
+      game.match.config.players.some((p) => p.controller === "human") &&
+      !showSettings,
     settings,
     game.input,
     game.frameRef,

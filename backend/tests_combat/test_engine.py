@@ -307,3 +307,17 @@ def test_old_projectile_keeps_original_correlation_without_confirming_new_combo(
     assert world.hit(0, "bolt", dict(MOVES["bolt"], request_id="old-projectile", source="model"), 0)
     assert not a.connected
     assert world.events[-1]["request_id"] == "old-projectile"
+
+
+def test_reference_mirror_match_is_decisive():
+    w = World(MatchConfig(best_of=1, round_seconds=30).model_dump())
+    for t in range(30 * 60):
+        if t % 20 == 0:
+            # Both sides decide from the same tick, like the live session does.
+            for i, v in enumerate([observe(w, 0), observe(w, 1)]):
+                if v["actions"]:
+                    w.apply(i, reference(v["state"], v["actions"]))
+        w.step()
+        if w.done:
+            break
+    assert w.fighters[0].health != w.fighters[1].health

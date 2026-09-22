@@ -2,15 +2,9 @@ import { memo, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { createRig } from "./rig";
 import { createStage } from "./stage";
-import { createPowers } from "./powers";
+import { COLORS, createPowers } from "./powers";
 import type { Frame, Settings } from "./types";
 import type { CombatAudio } from "./audio";
-const COLORS: Record<string, number> = {
-  ember: 0xff8655,
-  flux: 0x6adeff,
-  terra: 0xf2cf77,
-  nyx: 0xc2a3ff,
-};
 type Props = {
   frameRef: React.RefObject<Frame | null>;
   characters: string[];
@@ -66,7 +60,7 @@ export default memo(function Scene({
         ),
       );
       gl.shadowMap.enabled = settings.quality !== "low";
-      gl.shadowMap.type = THREE.PCFSoftShadowMap;
+      gl.shadowMap.type = THREE.PCFShadowMap;
       gl.toneMapping = THREE.ACESFilmicToneMapping;
       gl.toneMappingExposure = 1.15;
       gl.domElement.dataset.renderer = "combat-three";
@@ -111,7 +105,17 @@ export default memo(function Scene({
         gl.domElement.remove();
       };
       cleanup = cleanupBase;
-      const rigs = await Promise.all(characters.map((id) => createRig(id)));
+      const settled = await Promise.allSettled(
+        characters.map((id) => createRig(id)),
+      );
+      const failed = settled.find((r) => r.status === "rejected");
+      const rigs = settled.flatMap((r) =>
+        r.status === "fulfilled" ? [r.value] : [],
+      );
+      if (failed) {
+        rigs.forEach((r) => r.dispose());
+        throw failed.reason;
+      }
       if (disposed) {
         rigs.forEach((r) => r.dispose());
         cleanupBase();
@@ -199,6 +203,7 @@ export default memo(function Scene({
         vz: 0,
         life: 0,
         max: 1,
+        zeroed: false,
         color: new THREE.Color(),
       }));
       let cursor = 0;
@@ -222,9 +227,17 @@ export default memo(function Scene({
           s.vy = Math.sin(a) * 3 + 2;
           s.vz = Math.sin(j * 2) * 1.2;
           s.life = s.max = 0.25 + (j % 5) * 0.09;
+          s.zeroed = false;
           s.color.setHex(color);
         }
       };
+      const up = new THREE.Vector3(0, 1, 0),
+        direction = new THREE.Vector3(),
+        black = new THREE.Color(0),
+        hurtColors = characters.map((c) =>
+          new THREE.Color(COLORS[c]).multiplyScalar(0.3),
+        ),
+        hurtShown = characters.map((): boolean | null => null);
       const beam = (
         mesh: THREE.Mesh,
         x1: number,
@@ -233,13 +246,10 @@ export default memo(function Scene({
         y2: number,
         width: number,
       ) => {
-        const direction = new THREE.Vector3(x2 - x1, y2 - y1, 0);
+        direction.set(x2 - x1, y2 - y1, 0);
         mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0.02);
         mesh.scale.set(width, direction.length(), width);
-        mesh.quaternion.setFromUnitVectors(
-          new THREE.Vector3(0, 1, 0),
-          direction.normalize(),
-        );
+        mesh.quaternion.setFromUnitVectors(up, direction.normalize());
       };
       let previous: Frame | null = null,
         current: Frame | null = null,
@@ -271,6 +281,10 @@ export default memo(function Scene({
           previous = current ?? state;
           current = state;
           arrival = now;
+          if (state.tick < previous.tick) {
+            lastSeq = 0;
+            sparks.forEach((p) => (p.life = 0));
+          }
         }
         if (current) {
           const s = current,
@@ -284,11 +298,6 @@ export default memo(function Scene({
             Math.min(0.1, presentation - lastPresentation),
           );
           lastPresentation = presentation;
-          if (s.tick < (previous?.tick ?? 0)) {
-            lastSeq = 0;
-            sparks.forEach((p) => (p.life = 0));
-          }
-
           if (!s.preview) audio.consume(s);
           for (const e of s.events ?? []) {
             if (e.seq <= lastSeq) continue;
@@ -377,15 +386,14 @@ export default memo(function Scene({
                 : 1;
             rig.root.scale.setScalar(Math.max(0.001, dissolve));
             rig.root.visible = dissolve > 0.02;
-            const color = new THREE.Color(COLORS[f.character]);
-            rig.materials.forEach((m) => {
-              if (m.name !== "energy")
-                m.emissive.copy(
-                  f.hurt && !options.current.reducedFlash
-                    ? color.clone().multiplyScalar(0.3)
-                    : new THREE.Color(0),
-                );
-            });
+            const hurt = !!f.hurt && !options.current.reducedFlash;
+            if (hurt !== hurtShown[i]) {
+              hurtShown[i] = hurt;
+              rig.materials.forEach((m) => {
+                if (m.name !== "energy")
+                  m.emissive.copy(hurt ? hurtColors[i] : black);
+              });
+            }
             auras[i].position.copy(rig.root.position);
             auras[i].visible = f.energy >= 90 || f.action === "charge";
             auraMats[i].opacity = options.current.reducedFlash
@@ -461,26 +469,32 @@ export default memo(function Scene({
             if (!s.paused && frameCount % 4 === 0)
               burst(opponent.x, 1.2, COLORS[winner.character], s.tick, 8);
           }
+          // Dead slots are zeroed once; upload only when a slot changed.
+          let sparksChanged = false;
           sparks.forEach((p, i) => {
-            p.life = Math.max(0, p.life - dt);
             if (p.life > 0) {
+              p.life = Math.max(0, p.life - dt);
               p.x += p.vx * dt;
               p.y += p.vy * dt;
               p.z += p.vz * dt;
               p.vy -= 6 * dt;
               dummy.position.set(p.x, p.y, p.z);
               dummy.scale.setScalar((p.life / p.max) * (1 + p.max));
-            } else {
+            } else if (!p.zeroed) {
+              p.zeroed = true;
               dummy.position.set(0, -100, 0);
               dummy.scale.setScalar(0);
-            }
+            } else return;
+            sparksChanged = true;
             dummy.updateMatrix();
             particles.setMatrixAt(i, dummy.matrix);
             particles.setColorAt(i, p.color);
           });
-          particles.instanceMatrix.needsUpdate = true;
-          if (particles.instanceColor)
-            particles.instanceColor.needsUpdate = true;
+          if (sparksChanged) {
+            particles.instanceMatrix.needsUpdate = true;
+            if (particles.instanceColor)
+              particles.instanceColor.needsUpdate = true;
+          }
           const [a, b] = s.fighters;
           let targetX = (a.x + b.x) / 2;
           const span = Math.abs(a.x - b.x) + 5;
