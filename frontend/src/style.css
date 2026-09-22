@@ -1977,3 +1977,254 @@ main {
 .stop-run-button:disabled {
   opacity: 0.45;
 }
+/* Dataset results are the primary business view; telemetry stays in a disclosure. */
+.results-workspace {
+  padding: 20px;
+  min-width: 0;
+  border-top: 1px solid var(--border, #29364b);
+}
+.results-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  padding: 12px 0 18px;
+}
+.results-summary strong {
+  font-size: 20px;
+  color: #92c4ff;
+}
+.results-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.results-toolbar input {
+  min-width: 160px;
+  flex: 1;
+}
+.results-toolbar select {
+  max-width: 210px;
+}
+.results-scroll {
+  overflow: auto;
+  width: 100%;
+  max-height: 580px;
+  border: 1px solid #29364b;
+  border-radius: 8px;
+}
+.case-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.case-table th {
+  position: sticky;
+  top: 0;
+  background: #18263b;
+  z-index: 1;
+  color: #c4d5ea;
+}
+.case-table th,
+.case-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #29364b;
+  vertical-align: top;
+  min-width: 130px;
+}
+.case-table td {
+  line-height: 1.6;
+}
+.case-table tr:hover {
+  background: #162337;
+}
+.case-table small {
+  display: block;
+  color: #8ea3bb;
+  font-size: 11px;
+  white-space: normal;
+}
+.case-table th small {
+  font-weight: 400;
+}
+.case-table .case-input {
+  min-width: 260px;
+  max-width: 380px;
+}
+.case-table button {
+  color: #8ec7ff;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+}
+.verdict {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: #26364c;
+  white-space: nowrap;
+}
+.verdict.correct {
+  color: #79dbc3;
+  background: #173c37;
+}
+.verdict.incorrect,
+.verdict.error {
+  color: #ffc0ab;
+  background: #472c32;
+}
+.results-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0;
+}
+.case-detail {
+  padding: 20px;
+  background: #142337;
+  border: 1px solid #3b6088;
+  border-radius: 8px;
+  margin: 16px 0;
+}
+.case-detail pre {
+  max-height: 360px;
+  overflow: auto;
+}
+.case-full-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.results-note,
+.sample-note {
+  font-size: 12px;
+  color: #9db0c7;
+  line-height: 1.7;
+}
+.sample-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.execution-inspector > summary {
+  cursor: pointer;
+  padding: 16px 20px;
+  color: #9dc6f8;
+}
+.execution-inspector {
+  min-width: 0;
+}
+.comparison-table {
+  background: #111e30;
+  border: 1px solid #29364b;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+.comparison-table label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.comparison-table input[type="checkbox"] {
+  width: auto;
+}
+.run-header .provider-name {
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  .results-workspace {
+    padding: 12px;
+  }
+  .results-toolbar select {
+    max-width: 100%;
+    flex: 1;
+  }
+  .results-pagination {
+    flex-wrap: wrap;
+  }
+}
+.pause-run-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid #334b65;
+  border-radius: 8px;
+}
+.config-row {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+.config-row .sample-note {
+  grid-column: 1 / -1;
+  order: 2;
+}
+.results-workspace {
+  border-color: var(--line);
+}
+.results-summary strong {
+  color: #245694;
+}
+.results-scroll {
+  border-color: var(--line);
+}
+.case-table th {
+  background: #edf3fa;
+  color: #243348;
+}
+.case-table th,
+.case-table td {
+  border-color: #e1e8f0;
+}
+.case-table tr:hover {
+  background: #f2f6fb;
+}
+.case-table small {
+  color: #566e89;
+}
+.case-table button {
+  color: #225eaa;
+}
+.verdict {
+  color: #334861;
+  background: #edf1f6;
+}
+.verdict.correct {
+  color: #116a50;
+  background: #e3f5ed;
+}
+.verdict.incorrect,
+.verdict.error {
+  color: #9b3528;
+  background: #fff0eb;
+}
+.case-detail {
+  background: #f2f7fd;
+  border-color: #c5d6ec;
+}
+.results-note,
+.sample-note {
+  color: #566e89;
+}
+.execution-inspector > summary {
+  color: #245694;
+}
+.comparison-table {
+  background: #fff;
+  border-color: var(--line);
+}
+.pause-run-button {
+  border-color: #d5e0ed;
+}
+.question-accuracy {
+  display: flex;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  color: #566e89;
+  font-size: 12px;
+}
+.question-accuracy b {
+  color: #245694;
+}

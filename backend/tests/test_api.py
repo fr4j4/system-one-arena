@@ -39,7 +39,13 @@ def test_cross_origin_requests_rejected(client):
 def test_websocket_run_and_export(client):
     response = client.post(
         "/api/runs",
-        json={"scenario": "tickets", "provider": "reference", "budget_ms": 2000, "max_state_age_ms": 5000},
+        json={
+            "scenario": "tickets",
+            "provider": "reference",
+            "sample_size": 4,
+            "budget_ms": 2000,
+            "max_state_age_ms": 5000,
+        },
     )
     assert response.status_code == 201
     rid = response.json()["id"]

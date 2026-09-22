@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, Play, Pause, RefreshCw } from "lucide-react";
 import { api, ms, type Event, type Run } from "./types";
 import GameCanvas from "./GameCanvas";
+import ResultsTable from "./ResultsTable";
 import { Distribution } from "./RunPanel";
 export default function History({ onError }: { onError: (s: string) => void }) {
   const [runs, setRuns] = useState<Run[]>([]),
@@ -149,6 +150,16 @@ export default function History({ onError }: { onError: (s: string) => void }) {
                 />
                 <span>{((snap?.elapsed_ms ?? 0) / 1000).toFixed(1)} s</span>
               </div>
+              {events.some((e) => e.row) && (
+                <ResultsTable
+                  rows={[
+                    ...new Map(
+                      events.filter((e) => e.row).map((e) => [e.row.id, e.row]),
+                    ).values(),
+                  ]}
+                  name={selected.id}
+                />
+              )}
               <Distribution result={result} />
               <details>
                 <summary>Manifiesto de ejecución</summary>

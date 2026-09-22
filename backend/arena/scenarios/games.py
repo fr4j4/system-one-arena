@@ -158,7 +158,11 @@ class Game:
             board[int(action)] = 1
             self._ttt_done()
             if not self.done:
-                other = minimax_move(board, -1)
+                other = (
+                    self.rng.choice([i for i, value in enumerate(board) if value == 0])
+                    if self.options.get("opponent") == "random"
+                    else minimax_move(board, -1)
+                )
                 board[other] = -1
                 self._ttt_done()
         elif self.name == "snake":

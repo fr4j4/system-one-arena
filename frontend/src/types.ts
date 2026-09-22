@@ -4,6 +4,7 @@ export type Scenario = {
   category: string;
   description: string;
   kind: "game" | "business";
+  execution: "turns" | "realtime" | "batch";
 };
 export type Provider = {
   id: string;
@@ -90,10 +91,16 @@ export type RunConfig = {
   controller: string;
   max_seconds: number;
   options: Record<string, unknown>;
+  sample_size?: number | null;
+  sampling?: string;
+  difficulty?: string;
+  request_timeout_ms?: number;
   dataset?: any[];
   graph?: Graph;
 };
 export type Run = {
+  execution?: string;
+  sample?: { selected: number; available: number; [key: string]: any };
   id: string;
   status: string;
   error: string | null;

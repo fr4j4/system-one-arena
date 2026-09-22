@@ -7,3 +7,10 @@ Architecture: React/Vite console; FastAPI coordinator; isolated simulation proce
 Design: a flight-recorder-like instrument console. Ink #111c2b, slate #243348, paper #edf2f6, blue #377dff, cyan #43d8cf, amber #f5ba63. Condensed system display typography, readable system body, monospace telemetry. Signature: the shared decision timeline joins observable request stages to the scene. UI remains readable without external fonts.
 
 Delivery: protocol/adapters → runner and storage → six games → business scenarios/DAG → console → benchmarking/replay → portable deployment and verification. No sub-agents are required.
+
+
+## Revised experience model (2026-09-22)
+
+Scenario metadata declares `turns`, `realtime` or `batch`. Run policy derives from scenario, never the selected provider. Turn-based worlds change their state revision only on moves. Turns and datasets use a 30-second technical timeout and ignore continuous-world age limits; only continuous games expose optional scheduling limits. Batch runs finish on sample exhaustion rather than game duration. Continuous evaluation fixes speed at 1×; play uses an explicit fixed selected speed.
+
+Dataset sampling is seeded and without replacement, optionally balanced by category and filtered by difficulty. Three versioned Spanish corpora contain 240 synthetic compositions each, transparently grouped into 24 families and 10 contexts. Smaller examples for other domains remain identified as starter sets. Labels/rationales never enter model input. CSV/JSONL import, full processed result tables, history and paired case alignment all use stable IDs. API and UI cap sample size to actual availability. Technical failures are retained separately from quality denominators.

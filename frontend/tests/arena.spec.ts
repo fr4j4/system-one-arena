@@ -37,8 +37,8 @@ test("desktop preview, live Snake, metrics and timeline", async ({ page }) => {
 test("step mode tic-tac-toe only acts on demand", async ({ page }) => {
   await page.getByRole("button", { name: /Tic-tac-toe/ }).click();
   await page.getByLabel("Proveedor", { exact: true }).selectOption("reference");
-  await page.getByLabel("Reloj").selectOption("step");
-  await page.getByLabel("Presupuesto en milisegundos").fill("2000");
+  await page.getByLabel("Avance de turnos").selectOption("step");
+  await expect(page.getByLabel("Presupuesto en milisegundos")).toHaveCount(0);
   await page.getByRole("button", { name: "Iniciar ejecución" }).click();
   await expect(page.locator(".run-panel .status")).toHaveText("En vivo");
   await expect(page.getByText("Las probabilidades aparecerán")).toBeVisible();
@@ -64,7 +64,19 @@ test("ticket classification and replay", async ({ page }) => {
   await expect(page.locator(".run-panel .status")).toHaveText("Completado", {
     timeout: 10000,
   });
-  await expect(page.locator(".document-results>div")).toHaveCount(4);
+  await expect(page.locator(".case-table tbody tr")).toHaveCount(25);
+  await page.screenshot({
+    path: "/tmp/arena-dataset-results.png",
+    fullPage: true,
+  });
+  await page
+    .locator(".case-table tbody tr")
+    .first()
+    .getByRole("button")
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Detalle del caso" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Historial", exact: true }).click();
   await page.locator(".history-list button").first().click();
   await expect(page.locator(".replay-controls")).toBeVisible();
@@ -111,4 +123,92 @@ test("mobile layout does not overflow", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Iniciar ejecución" }),
   ).toBeVisible();
+});
+
+test("scenario controls follow turns, realtime and datasets", async ({
+  page,
+}) => {
+  await expect(page.getByLabel("Velocidad del juego")).toBeVisible();
+  await expect(page.getByLabel("Presupuesto en milisegundos")).toHaveCount(0);
+  await page
+    .getByLabel("Experiencia", { exact: true })
+    .selectOption("evaluate");
+  await expect(page.getByLabel("Velocidad del juego")).toBeDisabled();
+  await expect(page.getByLabel("Velocidad del juego")).toHaveValue("1");
+  await page.getByRole("button", { name: /Tic-tac-toe/ }).click();
+  await expect(page.getByLabel("Avance de turnos")).toBeVisible();
+  await expect(page.getByLabel("Velocidad del juego")).toHaveCount(0);
+  await page.getByRole("button", { name: /Decisiones 9/ }).click();
+  await page.getByRole("button", { name: /Tickets de soporte/ }).click();
+  await expect(page.getByLabel("Tamaño de muestra")).toBeVisible();
+  await expect(page.getByText(/25 de 240 casos disponibles/)).toBeVisible();
+  await page.getByLabel("Tamaño de muestra").selectOption("500");
+  await expect(page.getByText(/240 de 240 casos disponibles/)).toBeVisible();
+  await expect(page.getByLabel("Avance de turnos")).toHaveCount(0);
+});
+
+test("dataset A/B aligns cases and table pagination preserves all results", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: /Decisiones 9/ }).click();
+  await page.getByRole("button", { name: /Tickets de soporte/ }).click();
+  await page.getByLabel("Proveedor", { exact: true }).selectOption("reference");
+  await page.getByLabel("Tamaño de muestra").selectOption("100");
+  await page.getByRole("button", { name: "Avanzado", exact: true }).click();
+  await page.getByLabel("Comparar en vivo").selectOption("random");
+  await page.getByRole("button", { name: "Iniciar ejecución" }).click();
+  await expect(page.locator(".run-panel .status").first()).toHaveText(
+    "Completado",
+    { timeout: 25000 },
+  );
+  await expect(page.locator(".run-panel .status").last()).toHaveText(
+    "Completado",
+    { timeout: 25000 },
+  );
+  const panel = page.locator(".run-panel").first();
+  await expect(panel.getByText("100 / 100 procesados")).toBeVisible();
+  await expect(panel.locator(".case-table tbody tr")).toHaveCount(25);
+  await panel.getByRole("button", { name: "Siguiente", exact: true }).click();
+  await expect(panel.getByText(/Página 2 de 4/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Comparación por caso" }),
+  ).toBeVisible();
+  await expect(page.locator(".comparison-table")).not.toContainText(
+    "Pendiente",
+  );
+  await page.getByLabel(/Solo desacuerdos/).check();
+  await expect(
+    page.locator(".comparison-table tbody tr").first(),
+  ).toContainText("Desacuerdo");
+});
+
+test("CSV import preserves text, labels and unlabeled cases", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Datasets", exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "cases.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      'id,text,expected.department\ncustom-1,"Necesito una factura, por favor",billing\ncustom-2,"Consulta sin etiqueta",\n',
+    ),
+  });
+  await expect(
+    page.getByText("Archivo importado.", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Guardar y usar" }).click();
+  await expect(
+    page.getByText("Dataset guardado y seleccionado", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Arena", exact: true }).click();
+  await page.getByRole("button", { name: /Decisiones 9/ }).click();
+  await page.getByRole("button", { name: /Tickets de soporte/ }).click();
+  await page.getByLabel("Proveedor", { exact: true }).selectOption("reference");
+  await expect(page.getByText(/2 de 2 casos disponibles/)).toBeVisible();
+  await page.getByRole("button", { name: "Iniciar ejecución" }).click();
+  await expect(page.locator(".run-panel .status")).toHaveText("Completado");
+  await expect(page.locator(".case-table tbody tr")).toHaveCount(2);
+  await page.getByLabel("Filtrar evaluación").selectOption("unlabeled");
+  await expect(page.locator(".case-table tbody tr")).toHaveCount(1);
+  await expect(page.locator(".case-table tbody tr")).toContainText("custom-2");
 });

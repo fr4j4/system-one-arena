@@ -19,6 +19,7 @@ import {
   type Result,
 } from "./types";
 import GameCanvas from "./GameCanvas";
+import ResultsTable from "./ResultsTable";
 
 export function Distribution({ result }: { result?: Result }) {
   if (!result)
@@ -200,19 +201,27 @@ export default function RunPanel({
         if (event.kind === "stopped")
           setRun((r) => ({ ...r, status: "stopped" }));
         if (event.kind === "ready")
-          setRun((r) => ({ ...r, status: "running", warmup: event.warmup }));
+          setRun((r) => ({
+            ...r,
+            status: "running",
+            warmup: event.warmup,
+            sample: event.sample,
+          }));
         if (event.kind === "pause" || event.kind === "resume")
           setRun((r) => ({
             ...r,
             status: event.kind === "pause" ? "paused" : "running",
           }));
-        if (event.kind === "applied" && event.row)
+        if (
+          (event.kind === "applied" || event.kind === "case_failed") &&
+          event.row
+        )
           setRun((r) => ({
             ...r,
             rows: [
               ...(r.rows ?? []).filter((x) => x.id !== event.row.id),
               event.row,
-            ].slice(-200),
+            ],
           }));
         if (event.kind === "failed")
           setRun((r) => ({ ...r, error: event.error }));
@@ -258,6 +267,16 @@ export default function RunPanel({
   const m = run.metrics,
     active = !terminal(run.status),
     state = run.snapshot?.state;
+  const execution =
+    run.execution ??
+    (run.config.scenario === "tic-tac-toe"
+      ? "turns"
+      : ["snake", "pong", "tetris", "fighting", "space-invaders"].includes(
+            run.config.scenario,
+          )
+        ? "realtime"
+        : "batch");
+  const batch = execution === "batch";
   return (
     <article className="run-panel">
       <header className="run-header">
@@ -274,11 +293,23 @@ export default function RunPanel({
                   : run.config.provider.toUpperCase()}
             </strong>
             <small>
-              {run.config.mode === "realtime" ? "Tiempo real" : "Paso a paso"} ·
-              semilla {run.config.seed}
+              {batch
+                ? "Dataset"
+                : execution === "turns"
+                  ? "Por turnos"
+                  : "Tiempo real"}{" "}
+              · semilla {run.config.seed}
             </small>
           </div>
         </div>
+        <button
+          className="pause-run-button"
+          disabled={!active || run.status === "preparing"}
+          onClick={() => command(run.status === "paused" ? "resume" : "pause")}
+        >
+          {run.status === "paused" ? <Play size={14} /> : <Pause size={14} />}
+          {run.status === "paused" ? "Continuar" : "Pausar"}
+        </button>
         <button
           className="stop-run-button"
           aria-label="Detener"
@@ -298,7 +329,7 @@ export default function RunPanel({
           no cuenta como inferencia.
         </div>
       ) : null}
-      {(m.counts.expired ?? 0) > 0 && (
+      {execution === "realtime" && (m.counts.expired ?? 0) > 0 && (
         <div className="preparing-strip" role="status">
           {m.counts.expired} decisiones descartadas por plazo o antigüedad.
           Presupuesto: {run.config.budget_ms} ms; antigüedad máxima:{" "}
@@ -308,178 +339,170 @@ export default function RunPanel({
           latencia del proveedor.
         </div>
       )}
-      <div className="live-body">
-        <div className="scene-column">
-          {state &&
-          [
-            "tic-tac-toe",
-            "snake",
-            "pong",
-            "tetris",
-            "fighting",
-            "space-invaders",
-          ].includes(state.scenario) ? (
-            <GameCanvas state={state} />
-          ) : (
-            <div className="business-stage">
-              <div className="document-count">
-                ENTRADA {(state?.index ?? 0) + 1} / {state?.total ?? "—"}
-              </div>
-              <blockquote>{state?.text ?? "Preparando entrada…"}</blockquote>
-              {state?.node ? (
-                <div className="path">
-                  <span>Nodo activo</span>
-                  <b>{state.node}</b>
-                  <small>{state.path?.join(" → ")}</small>
+      {batch && (
+        <ResultsTable
+          rows={run.rows ?? []}
+          total={state?.total ?? run.sample?.selected}
+          name={run.id}
+        />
+      )}
+      <details className="execution-inspector" open={batch ? undefined : true}>
+        {batch && <summary>Entrada actual e inspector del modelo</summary>}
+        <div className="live-body">
+          <div className="scene-column">
+            {state &&
+            [
+              "tic-tac-toe",
+              "snake",
+              "pong",
+              "tetris",
+              "fighting",
+              "space-invaders",
+            ].includes(state.scenario) ? (
+              <GameCanvas state={state} />
+            ) : (
+              <div className="business-stage">
+                <div className="document-count">
+                  ENTRADA {(state?.index ?? 0) + 1} / {state?.total ?? "—"}
                 </div>
-              ) : null}
-              <div className="document-results">
-                {(run.rows ?? []).slice(-5).map((row, i) => (
-                  <div key={i}>
-                    <span>{row.id}</span>
-                    <strong>
-                      {row.output ??
-                        Object.values(row.answers ?? {})
-                          .map((a: any) => String(a.value))
-                          .join(" · ")}
-                    </strong>
+                <blockquote>{state?.text ?? "Preparando entrada…"}</blockquote>
+                {state?.node ? (
+                  <div className="path">
+                    <span>Nodo activo</span>
+                    <b>{state.node}</b>
+                    <small>{state.path?.join(" → ")}</small>
                   </div>
+                ) : null}
+              </div>
+            )}
+            <div className="transport">
+              <div className="transport-buttons">
+                {execution === "turns" && (
+                  <button
+                    title="Una decisión"
+                    aria-label="Una decisión"
+                    disabled={!active || run.config.mode !== "step"}
+                    onClick={() => command("step")}
+                  >
+                    <SkipForward size={16} /> Siguiente turno
+                  </button>
+                )}
+              </div>
+              <span>
+                Estado #{run.snapshot?.state_seq ?? 0} <b>·</b>{" "}
+                {execution === "realtime"
+                  ? `${run.config.speed}×`
+                  : execution === "turns"
+                    ? "Por turnos"
+                    : "Por caso"}
+              </span>
+              <a
+                className="icon-link"
+                href={"/api/runs/" + run.id + "/export"}
+                title="Exportar ejecución"
+              >
+                <Download size={15} />
+              </a>
+            </div>
+            {run.config.controller === "human" ? (
+              <div className="human-controls">
+                {run.snapshot?.allowed_actions.map((a) => (
+                  <button
+                    key={a}
+                    disabled={!active}
+                    onClick={() => command("action", a)}
+                  >
+                    {a}
+                  </button>
                 ))}
               </div>
+            ) : null}
+            <div className="metric-grid">
+              <Metric
+                name="Llamada p50"
+                value={ms(m.provider_ms.p50)}
+                unit="ms"
+              />
+              <Metric
+                name="Llamada p95"
+                value={ms(m.provider_ms.p95)}
+                unit="ms"
+              />
+              <Metric
+                name="Hasta aplicar p95"
+                value={ms(m.end_to_end_ms.p95)}
+                unit="ms"
+              />
+              <Metric
+                name="Fuera de plazo"
+                value={String(m.counts.expired ?? 0)}
+                unit=""
+              />
             </div>
-          )}
-          <div className="transport">
-            <div className="transport-buttons">
-              <button
-                title={run.status === "paused" ? "Continuar" : "Pausar"}
-                aria-label={run.status === "paused" ? "Continuar" : "Pausar"}
-                disabled={!active || run.status === "preparing"}
-                onClick={() =>
-                  command(run.status === "paused" ? "resume" : "pause")
-                }
-              >
-                {run.status === "paused" ? (
-                  <Play size={15} />
-                ) : (
-                  <Pause size={15} />
-                )}
-              </button>
-              <button
-                title="Una decisión"
-                aria-label="Una decisión"
-                disabled={!active || run.config.mode !== "step"}
-                onClick={() => command("step")}
-              >
-                <SkipForward size={16} />
-              </button>
+            <div className="latency-section">
+              <div className="label-row">
+                <span>LATENCIA POR DECISIÓN</span>
+                <small>
+                  <i className="budget-dot" /> presupuesto{" "}
+                  {run.config.budget_ms} ms
+                </small>
+              </div>
+              <Sparkline events={events} budget={run.config.budget_ms} />
             </div>
-            <span>
-              Estado #{run.snapshot?.state_seq ?? 0} <b>·</b>{" "}
-              {run.config.decision_hz} Hz
-            </span>
-            <a
-              className="icon-link"
-              href={"/api/runs/" + run.id + "/export"}
-              title="Exportar ejecución"
-            >
-              <Download size={15} />
-            </a>
           </div>
-          {run.config.controller === "human" ? (
-            <div className="human-controls">
-              {run.snapshot?.allowed_actions.map((a) => (
+          <aside className="live-inspector">
+            <div className="inspector-tabs">
+              {[
+                ["probabilities", "Decisiones"],
+                ["timeline", "Timeline"],
+                ["input", "Entrada"],
+                ["raw", "Respuesta"],
+              ].map(([id, label]) => (
                 <button
-                  key={a}
-                  disabled={!active}
-                  onClick={() => command("action", a)}
+                  className={tab === id ? "selected" : ""}
+                  key={id}
+                  onClick={() => setTab(id)}
                 >
-                  {a}
+                  {label}
                 </button>
               ))}
             </div>
-          ) : null}
-          <div className="metric-grid">
-            <Metric
-              name="Llamada p50"
-              value={ms(m.provider_ms.p50)}
-              unit="ms"
-            />
-            <Metric
-              name="Llamada p95"
-              value={ms(m.provider_ms.p95)}
-              unit="ms"
-            />
-            <Metric
-              name="Hasta aplicar p95"
-              value={ms(m.end_to_end_ms.p95)}
-              unit="ms"
-            />
-            <Metric
-              name="Fuera de plazo"
-              value={String(m.counts.expired ?? 0)}
-              unit=""
-            />
-          </div>
-          <div className="latency-section">
-            <div className="label-row">
-              <span>LATENCIA POR DECISIÓN</span>
-              <small>
-                <i className="budget-dot" /> presupuesto {run.config.budget_ms}{" "}
-                ms
-              </small>
+            <div className="inspector-body">
+              {tab === "probabilities" ? (
+                <Distribution result={run.last_result} />
+              ) : tab === "timeline" ? (
+                <div className="timeline">
+                  {events
+                    .filter((e) => e.kind !== "snapshot")
+                    .slice(-24)
+                    .reverse()
+                    .map((e) => (
+                      <div className={"timeline-row " + e.kind} key={e.seq}>
+                        <i />
+                        <span>{e.kind}</span>
+                        <code>{ms(e.elapsed_ms)} ms</code>
+                        <small>
+                          {e.reason ??
+                            e.error ??
+                            e.request_id?.slice(0, 7) ??
+                            ""}
+                        </small>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <pre>
+                  {JSON.stringify(
+                    tab === "input" ? run.last_request : run.last_result?.raw,
+                    null,
+                    2,
+                  ) ?? "Todavía no hay una decisión."}
+                </pre>
+              )}
             </div>
-            <Sparkline events={events} budget={run.config.budget_ms} />
-          </div>
+          </aside>
         </div>
-        <aside className="live-inspector">
-          <div className="inspector-tabs">
-            {[
-              ["probabilities", "Decisiones"],
-              ["timeline", "Timeline"],
-              ["input", "Entrada"],
-              ["raw", "Respuesta"],
-            ].map(([id, label]) => (
-              <button
-                className={tab === id ? "selected" : ""}
-                key={id}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="inspector-body">
-            {tab === "probabilities" ? (
-              <Distribution result={run.last_result} />
-            ) : tab === "timeline" ? (
-              <div className="timeline">
-                {events
-                  .filter((e) => e.kind !== "snapshot")
-                  .slice(-24)
-                  .reverse()
-                  .map((e) => (
-                    <div className={"timeline-row " + e.kind} key={e.seq}>
-                      <i />
-                      <span>{e.kind}</span>
-                      <code>{ms(e.elapsed_ms)} ms</code>
-                      <small>
-                        {e.reason ?? e.error ?? e.request_id?.slice(0, 7) ?? ""}
-                      </small>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <pre>
-                {JSON.stringify(
-                  tab === "input" ? run.last_request : run.last_result?.raw,
-                  null,
-                  2,
-                ) ?? "Todavía no hay una decisión."}
-              </pre>
-            )}
-          </div>
-        </aside>
-      </div>
+      </details>
       {run.error ? <div className="inline-error">{run.error}</div> : null}
       <details className="detail-metrics">
         <summary>

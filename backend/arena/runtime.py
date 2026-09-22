@@ -10,7 +10,8 @@ from uuid import uuid4
 
 from arena.metrics import evaluate, hardware, percentiles
 from arena.protocol import DecisionRequest
-from arena.scenarios.business import Business
+from arena.scenarios.business import Business, fixtures, validate_dataset
+from arena.scenarios.datasets import sample
 from arena.scenarios.games import CATALOG
 from arena.simulation import Simulation
 
@@ -19,6 +20,13 @@ GAMES = {x[0] for x in CATALOG}
 
 class Run:
     def __init__(self, config, adapter, store, gate):
+        config = config.model_copy(deep=True)
+        if config.execution != "turns":
+            config.mode = "realtime"
+        if config.execution == "batch":
+            config.controller = "model"
+        if config.execution == "realtime" and config.options.get("experience") == "evaluate":
+            config.speed = 1
         self.id, self.episode = uuid4().hex, uuid4().hex
         self.config, self.adapter, self.store, self.gate = config, adapter, store, gate
         self.created_at = datetime.now(UTC).isoformat()
@@ -43,6 +51,7 @@ class Run:
         self.warmup_info = None
         self.metadata = hardware()
         self.failure_streak = 0
+        self.sample_manifest = None
 
     def summary(self):
         return {
@@ -54,6 +63,8 @@ class Run:
             "config": self.config.model_dump(),
             "metadata": self.metadata,
             "warmup": self.warmup_info,
+            "execution": self.config.execution,
+            "sample": self.sample_manifest,
             "metrics": self.metrics(),
         }
 
@@ -80,7 +91,7 @@ class Run:
             "events": list(self.recent),
             "last_result": self.last_result,
             "last_request": self.last_request,
-            "rows": self.business.results[-200:] if self.business else [],
+            "rows": self.business.results if self.business else [],
         }
 
     async def emit(self, kind, **payload):
@@ -121,12 +132,17 @@ class Run:
             if self.config.scenario in GAMES:
                 self.sim = Simulation(self.config.model_dump(), self.episode)
             else:
-                self.business = Business(
-                    self.config.scenario, self.config.dataset, self.config.graph, self.config.options
+                items, self.sample_manifest = sample(
+                    validate_dataset(self.config.dataset or fixtures(self.config.scenario)),
+                    self.config.sample_size,
+                    self.config.sampling,
+                    self.config.seed,
+                    self.config.difficulty,
                 )
+                self.business = Business(self.config.scenario, items, self.config.graph, self.config.options)
                 await self._business_snapshot()
             self.status = "running"
-            await self.emit("ready", warmup=self.warmup_info)
+            await self.emit("ready", warmup=self.warmup_info, sample=self.sample_manifest)
             while self.status in ("running", "paused"):
                 if self.sim:
                     for item in self.sim.read():
@@ -152,7 +168,10 @@ class Run:
                 if self.current and self.current["state"].get("done"):
                     self.status = "completed"
                     break
-                if time.perf_counter() - self.active_started >= self.config.max_seconds:
+                if (
+                    self.config.execution != "batch"
+                    and time.perf_counter() - self.active_started >= self.config.max_seconds
+                ):
                     self.status = "completed"
                     await self.emit("time_limit")
                     break
@@ -165,7 +184,10 @@ class Run:
                     and not self.call_task
                     and self.config.controller == "model"
                     and (self.config.mode == "realtime" or self.pending_step > 0)
-                    and time.perf_counter() - self.last_decision >= 1 / self.config.decision_hz
+                    and (
+                        self.config.execution != "realtime"
+                        or time.perf_counter() - self.last_decision >= 1 / self.config.decision_hz
+                    )
                     and (
                         self.current["state_seq"] != self.last_submitted_seq
                         or self.business
@@ -216,8 +238,12 @@ class Run:
             state=snapshot["state"],
             questions=snapshot["questions"],
             allowed_actions=snapshot["allowed_actions"],
-            budget_ms=self.config.budget_ms,
-            max_state_age_ms=self.config.max_state_age_ms,
+            budget_ms=self.config.budget_ms
+            if self.config.execution == "realtime"
+            else self.config.request_timeout_ms,
+            max_state_age_ms=self.config.max_state_age_ms
+            if self.config.execution == "realtime"
+            else self.config.request_timeout_ms,
         )
         rid = request.request_id
         self.last_request = request.model_dump()
@@ -233,11 +259,13 @@ class Run:
                 lock_acquired = True
             except TimeoutError:
                 await self.emit("expired", request_id=rid, stage="queue")
+                if self.business and self.status == "running":
+                    await self._failed_item("Tiempo de espera en cola agotado", 0)
                 return
             started = time.perf_counter_ns()
             queue_ms = (started - accepted) / 1e6
             self.queues.append(queue_ms)
-            if started >= deadline or self.status not in ("running", "paused"):
+            if started >= deadline or self.status != "running" or self.paused:
                 await self.emit("expired", request_id=rid, stage="before_call")
                 return
             await self.emit("started", request_id=rid, queue_ms=queue_ms)
@@ -267,12 +295,18 @@ class Run:
             if (
                 expired
                 or ended > deadline
-                or ended - snapshot["captured_ns"] > request.max_state_age_ms * 1e6
+                or (
+                    self.config.execution == "realtime"
+                    and ended - snapshot["captured_ns"] > request.max_state_age_ms * 1e6
+                )
             ):
                 if not expired:
                     await self.emit("expired", request_id=rid, stage="state_age")
+                if self.business:
+                    await self._failed_item("Tiempo de espera del proveedor agotado", provider_ms)
                 return
             if self.business:
+                previous_count = len(self.business.results)
                 self.business.apply(self.last_result)
                 self.e2e.append((time.perf_counter_ns() - accepted) / 1e6)
                 self.overheads.append(max(0, self.e2e[-1] - provider_ms - queue_ms))
@@ -281,7 +315,7 @@ class Run:
                     "applied",
                     request_id=rid,
                     answers=self.last_result["answers"],
-                    row=self.business.results[-1] if self.business.results else None,
+                    row=self.business.results[-1] if len(self.business.results) > previous_count else None,
                     end_to_end_ms=self.e2e[-1],
                 )
                 await self._business_snapshot()
@@ -297,13 +331,17 @@ class Run:
                         "captured_ns": snapshot["captured_ns"],
                         "accepted_ns": accepted,
                         "deadline_ns": deadline,
-                        "valid_until_ns": snapshot["captured_ns"] + request.max_state_age_ms * 1_000_000,
+                        "valid_until_ns": snapshot["captured_ns"] + request.max_state_age_ms * 1_000_000
+                        if self.config.execution == "realtime"
+                        else deadline,
                     }
                 )
         except Exception as exc:
             self.failure_streak += 1
             await self.emit("failed", request_id=rid, error=str(exc))
-            if self.failure_streak >= 3:
+            if self.business and self.status == "running":
+                await self._failed_item(str(exc), (time.perf_counter_ns() - accepted) / 1e6)
+            elif self.failure_streak >= 3:
                 self.error, self.status = str(exc), "failed"
         finally:
             # Retry an unchanged turn after expiry/failure, but wait for the simulation
@@ -314,6 +352,11 @@ class Run:
             self.inflight = None
             if lock_acquired:
                 self.gate.release()
+
+    async def _failed_item(self, error, latency_ms):
+        self.business.fail(error, latency_ms)
+        await self.emit("case_failed", row=self.business.results[-1], error=error)
+        await self._business_snapshot()
 
     async def control(self, command, action=None):
         if command == "stop":

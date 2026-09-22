@@ -30,6 +30,7 @@ import {
 } from "./types";
 import RunPanel from "./RunPanel";
 import GameCanvas from "./GameCanvas";
+import ComparisonTable from "./ComparisonTable";
 const WorkflowEditor = lazy(() => import("./WorkflowEditor"));
 const Benchmarks = lazy(() => import("./Benchmarks"));
 const Datasets = lazy(() => import("./Datasets"));
@@ -80,12 +81,18 @@ export default function App() {
     [hz, setHz] = useState(10),
     [budget, setBudget] = useState(1000),
     [age, setAge] = useState(1500),
-    [speed, setSpeed] = useState(1),
+    [speed, setSpeed] = useState(0.5),
     [representation, setRepresentation] = useState("direct"),
     [controller, setController] = useState("model"),
     [seconds, setSeconds] = useState(180),
     [tetris, setTetris] = useState("movement"),
     [hierarchy, setHierarchy] = useState("tree");
+  const [sampleSize, setSampleSize] = useState(25),
+    [sampling, setSampling] = useState("random"),
+    [difficulty, setDifficulty] = useState("all"),
+    [available, setAvailable] = useState<any[]>([]),
+    [experience, setExperience] = useState("play"),
+    [opponent, setOpponent] = useState("minimax");
   const onError = useCallback(
     (s: string) => setError(s.replace(/^Error: /, "")),
     [],
@@ -113,6 +120,18 @@ export default function App() {
       .catch(() => setPreview(undefined));
   }, [scenario]);
   const chosen = scenarios.find((s) => s.id === scenario);
+  const execution = chosen?.execution ?? "realtime";
+  useEffect(() => {
+    if (chosen?.kind === "business")
+      api<any[]>("/fixtures/" + scenario)
+        .then(setAvailable)
+        .catch((e) => onError(String(e)));
+    else setAvailable([]);
+  }, [scenario, chosen?.kind, onError]);
+  const sourceRows = datasets[scenario] ?? available;
+  const eligible = sourceRows.filter(
+    (r) => difficulty === "all" || r.metadata?.difficulty === difficulty,
+  ).length;
   const start = async () => {
     setLoading(true);
     setError("");
@@ -126,16 +145,29 @@ export default function App() {
       const config: RunConfig = {
         scenario,
         provider,
-        mode,
+        mode: execution === "turns" ? mode : "realtime",
         seed,
         decision_hz: hz,
         budget_ms: budget,
         max_state_age_ms: age,
-        speed,
+        speed:
+          execution === "realtime"
+            ? experience === "evaluate"
+              ? 1
+              : speed
+            : 1,
         representation,
-        controller,
+        controller: execution === "batch" ? "model" : controller,
         max_seconds: seconds,
-        options: { tetris_control: tetris, hierarchy_mode: hierarchy },
+        sample_size: sampleSize || null,
+        sampling,
+        difficulty,
+        options: {
+          tetris_control: tetris,
+          hierarchy_mode: hierarchy,
+          experience,
+          opponent,
+        },
         ...(datasets[scenario] ? { dataset: datasets[scenario] } : {}),
         ...(scenario === "workflow" ? { graph } : {}),
       };
@@ -333,50 +365,149 @@ export default function App() {
                     ))}
                   </select>
                 </label>
-                <label>
-                  Reloj
-                  <select
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value)}
-                  >
-                    <option value="realtime">Tiempo real</option>
-                    <option value="step">Paso a paso</option>
-                  </select>
-                </label>
-                <label>
-                  Presupuesto
-                  <input
-                    aria-label="Presupuesto en milisegundos"
-                    type="number"
-                    min="10"
-                    max="60000"
-                    value={budget}
-                    onChange={(e) => setBudget(+e.target.value)}
-                  />
-                  <span className="input-unit">ms</span>
-                </label>
-                <label>
-                  Frecuencia
-                  <input
-                    aria-label="Frecuencia de decisiones"
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={hz}
-                    onChange={(e) => setHz(+e.target.value)}
-                  />
-                  <span className="input-unit">Hz</span>
-                </label>
+                {execution === "turns" && (
+                  <>
+                    <label>
+                      Avance
+                      <select
+                        aria-label="Avance de turnos"
+                        value={mode}
+                        onChange={(e) => setMode(e.target.value)}
+                      >
+                        <option value="realtime">Automático</option>
+                        <option value="step">Manual · siguiente turno</option>
+                      </select>
+                    </label>
+                    <label>
+                      Rival
+                      <select
+                        value={opponent}
+                        onChange={(e) => setOpponent(e.target.value)}
+                      >
+                        <option value="minimax">Óptimo · minimax</option>
+                        <option value="random">Aleatorio</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+                {execution === "realtime" && (
+                  <>
+                    <label>
+                      Experiencia
+                      <select
+                        aria-label="Experiencia"
+                        value={experience}
+                        onChange={(e) => setExperience(e.target.value)}
+                      >
+                        <option value="play">Jugar y observar</option>
+                        <option value="evaluate">
+                          Evaluar · velocidad fija 1×
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Velocidad del juego
+                      <select
+                        value={experience === "evaluate" ? 1 : speed}
+                        disabled={experience === "evaluate"}
+                        onChange={(e) => setSpeed(+e.target.value)}
+                      >
+                        {[0.1, 0.25, 0.5, 1, 1.5, 2, 3].map((n) => (
+                          <option key={n} value={n}>
+                            {n}×
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+                {execution === "batch" && (
+                  <>
+                    <label>
+                      Dataset
+                      <select
+                        aria-label="Dataset activo"
+                        value={datasets[scenario] ? "custom" : "included"}
+                        onChange={() =>
+                          setDatasets((old) => {
+                            const next = { ...old };
+                            delete next[scenario];
+                            return next;
+                          })
+                        }
+                      >
+                        <option value="included">
+                          Incluido · sintético ({available.length})
+                        </option>
+                        {datasets[scenario] && (
+                          <option value="custom">
+                            Importado ({datasets[scenario].length})
+                          </option>
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      Muestra
+                      <select
+                        aria-label="Tamaño de muestra"
+                        value={sampleSize}
+                        onChange={(e) => setSampleSize(+e.target.value)}
+                      >
+                        {[25, 100, 500, 0].map((n) => (
+                          <option key={n} value={n}>
+                            {n || "Todos"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Selección
+                      <select
+                        value={sampling}
+                        onChange={(e) => setSampling(e.target.value)}
+                      >
+                        <option value="random">Aleatoria</option>
+                        <option value="balanced">
+                          Equilibrada por categoría
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Casos
+                      <select
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(e.target.value)}
+                      >
+                        <option value="all">Todos</option>
+                        {["claro", "difícil", "ambiguo"].map((d) => (
+                          <option key={d}>{d}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="sample-note">
+                      Se procesarán {Math.min(sampleSize || eligible, eligible)}{" "}
+                      de {eligible} casos disponibles, sin repetición. Las
+                      variantes sintéticas comparten familias.{" "}
+                      <button onClick={() => setPage("datasets")}>
+                        Ver o importar dataset
+                      </button>
+                    </p>
+                  </>
+                )}
                 <button
                   className="primary start-button"
                   onClick={start}
-                  disabled={loading || !providers.length}
+                  disabled={
+                    loading ||
+                    !providers.length ||
+                    (execution === "batch" && !eligible)
+                  }
                 >
                   <Play size={16} fill="currentColor" />
                   {loading
                     ? "Iniciando…"
                     : runs.length
-                      ? "Nueva ejecución"
+                      ? "Reiniciar ejecución"
                       : "Iniciar ejecución"}
                 </button>
               </div>
@@ -407,59 +538,79 @@ export default function App() {
                       onChange={(e) => setSeed(+e.target.value)}
                     />
                   </label>
-                  <label>
-                    Velocidad del mundo
-                    <select
-                      value={speed}
-                      onChange={(e) => setSpeed(+e.target.value)}
-                    >
-                      {[0.1, 0.25, 0.5, 1, 1.5, 2, 3].map((n) => (
-                        <option key={n} value={n}>
-                          {n}×
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Antigüedad máxima (ms)
-                    <input
-                      type="number"
-                      value={age}
-                      min="10"
-                      max="60000"
-                      onChange={(e) => setAge(+e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Duración máxima (s)
-                    <input
-                      type="number"
-                      min="1"
-                      max="3600"
-                      value={seconds}
-                      onChange={(e) => setSeconds(+e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Representación
-                    <select
-                      value={representation}
-                      onChange={(e) => setRepresentation(e.target.value)}
-                    >
-                      <option value="direct">Estado directo</option>
-                      <option value="enriched">Estado enriquecido</option>
-                    </select>
-                  </label>
-                  <label>
-                    Control
-                    <select
-                      value={controller}
-                      onChange={(e) => setController(e.target.value)}
-                    >
-                      <option value="model">Proveedor</option>
-                      <option value="human">Humano · juegos</option>
-                    </select>
-                  </label>
+                  {execution === "realtime" && (
+                    <label>
+                      Presupuesto técnico (ms)
+                      <input
+                        aria-label="Presupuesto en milisegundos"
+                        type="number"
+                        min="10"
+                        max="60000"
+                        value={budget}
+                        onChange={(e) => setBudget(+e.target.value)}
+                      />
+                    </label>
+                  )}
+                  {execution === "realtime" && (
+                    <label>
+                      Frecuencia máxima (Hz)
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={hz}
+                        onChange={(e) => setHz(+e.target.value)}
+                      />
+                    </label>
+                  )}
+                  {execution === "realtime" && (
+                    <label>
+                      Antigüedad máxima (ms)
+                      <input
+                        type="number"
+                        value={age}
+                        min="10"
+                        max="60000"
+                        onChange={(e) => setAge(+e.target.value)}
+                      />
+                    </label>
+                  )}
+                  {execution !== "batch" && (
+                    <label>
+                      Duración máxima (s)
+                      <input
+                        type="number"
+                        min="1"
+                        max="3600"
+                        value={seconds}
+                        onChange={(e) => setSeconds(+e.target.value)}
+                      />
+                    </label>
+                  )}
+                  {execution !== "batch" && (
+                    <label>
+                      Representación
+                      <select
+                        value={representation}
+                        onChange={(e) => setRepresentation(e.target.value)}
+                      >
+                        <option value="direct">Estado directo</option>
+                        <option value="enriched">Estado enriquecido</option>
+                      </select>
+                    </label>
+                  )}
+                  {execution !== "batch" && (
+                    <label>
+                      Control
+                      <select
+                        value={controller}
+                        onChange={(e) => setController(e.target.value)}
+                      >
+                        <option value="model">Proveedor</option>
+                        <option value="human">Humano · juegos</option>
+                      </select>
+                    </label>
+                  )}
                   {scenario === "tetris" ? (
                     <label>
                       Control de Tetris
@@ -494,7 +645,13 @@ export default function App() {
                     ? "Control de referencia sin llamadas a un modelo."
                     : providers.find((p) => p.id === provider)?.description}
                 {compare ? (
-                  <span> · Misma semilla; trayectorias independientes.</span>
+                  <span>
+                    {" "}
+                    ·{" "}
+                    {execution === "batch"
+                      ? "Mismos casos, etiquetas y orden para ambos proveedores."
+                      : "Misma semilla; trayectorias independientes."}
+                  </span>
                 ) : null}
                 {datasets[scenario] ? (
                   <span>
@@ -512,6 +669,9 @@ export default function App() {
                 <i /> LIVE INSPECTOR
               </span>
             </div>
+            {execution === "batch" && runs.length === 2 && (
+              <ComparisonTable runs={runs} />
+            )}
             {runs.length ? (
               <div
                 className={"runs-grid " + (runs.length > 1 ? "comparison" : "")}

@@ -31,6 +31,8 @@ def evaluate(rows, threshold=0.5):
     confusion = {}
     squared, calibration, ordinal_errors = [], [], []
     for row in rows:
+        if row.get("status") == "error":
+            continue
         for key, answer in row.get("answers", {}).items():
             if key not in row.get("expected", {}):
                 continue

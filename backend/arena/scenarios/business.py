@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 
 from arena.protocol import Question
+from arena.scenarios.datasets import corpus
 
 BUSINESS = [
     ("tickets", "Tickets de soporte", "Clasificación", "Equipo, prioridad y escalamiento"),
@@ -297,8 +298,19 @@ def validate_graph(graph):
 
 def fixtures(name):
     name = "tickets" if name == "workflow" else name
+    if name in ("tickets", "email", "spam"):
+        return corpus(name)
     return [
-        {"id": f"{name}-{i}", "state": {"text": text}, "expected": expected}
+        {
+            "id": f"{name}-{i}",
+            "state": {"text": text},
+            "expected": expected,
+            "metadata": {
+                "source": "Sintético · ejemplos iniciales",
+                "version": "starter-v1",
+                "difficulty": "claro",
+            },
+        }
         for i, (text, expected) in enumerate(SAMPLES[name])
     ]
 
@@ -306,9 +318,16 @@ def fixtures(name):
 def validate_dataset(items):
     if not isinstance(items, list) or not items or len(items) > 10000:
         raise ValueError("El dataset debe tener entre 1 y 10000 casos")
-    for item in items:
+    ids = set()
+    for index, item in enumerate(items):
         if not isinstance(item, dict) or not isinstance(item.get("state"), dict):
             raise ValueError("Cada caso requiere un objeto state")
+        item.setdefault("id", f"import-{index + 1}")
+        if not isinstance(item["id"], str) or item["id"] in ids:
+            raise ValueError("Cada caso requiere un id de texto único")
+        ids.add(item["id"])
+        if not isinstance(item.get("metadata", {}), dict):
+            raise ValueError("metadata debe ser un objeto")
         if not isinstance(item.get("expected", {}), dict):
             raise ValueError("expected debe ser un objeto")
     return items
@@ -328,6 +347,8 @@ class Business:
         self.category = None
         self.done = False
         self.seq = 0
+        self.item_latency_ms = 0.0
+        self.item_calls = 0
 
     def observe(self):
         return {
@@ -362,6 +383,8 @@ class Business:
         return QUESTIONS[self.name]
 
     def apply(self, result):
+        self.item_latency_ms += result.get("timings", {}).get("provider_ms", 0) or 0
+        self.item_calls += 1
         values = {k: v["value"] for k, v in result["answers"].items()}
         self.answers.update(result["answers"])
         self.seq += 1
@@ -399,10 +422,21 @@ class Business:
             self.answers["subcategory"] = {**self.answers["subcategory"], "value": sub, "probabilities": None}
         self._finish_item()
 
-    def _finish_item(self, output=None):
+    def fail(self, error, latency_ms=0):
+        self.item_latency_ms += latency_ms
+        self.item_calls += 1
+        self.seq += 1
+        self._finish_item(error=error)
+
+    def _finish_item(self, output=None, error=None):
         self.results.append(
             {
                 "id": self.items[self.index].get("id", str(self.index)),
+                "metadata": self.items[self.index].get("metadata", {}),
+                "status": "error" if error else "completed",
+                "error": error,
+                "latency_ms": round(self.item_latency_ms, 3),
+                "calls": self.item_calls,
                 "state": self.items[self.index]["state"],
                 "answers": copy.deepcopy(self.answers),
                 "expected": self.items[self.index].get("expected", {}),
@@ -415,4 +449,5 @@ class Business:
         else:
             self.index += 1
             self.answers, self.path, self.category = {}, [], None
+            self.item_latency_ms, self.item_calls = 0.0, 0
             self.node = self.graph["start"] if self.graph else None

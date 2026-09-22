@@ -56,9 +56,7 @@ def corpus(config):
     business = Business(config.scenario, config.dataset, options=config.options)
     items = []
     # Hierarchical/workflow decisions use corpus captured along the reference path.
-    while len(items) < config.samples:
-        if business.done:
-            business = Business(config.scenario, config.dataset, options=config.options)
+    while len(items) < config.samples and not business.done:
         questions = business.questions()
         source = business.items[business.index]
         expected = source.get("expected", {})
@@ -116,7 +114,7 @@ class Benchmark:
 
     async def _corpus(self):
         items = await asyncio.to_thread(corpus, self.config)
-        total = len(self.config.providers) * self.config.samples
+        total = len(self.config.providers) * len(items)
         for provider in self.config.providers:
             if self.cancelled:
                 break
@@ -130,7 +128,7 @@ class Benchmark:
             }
             async with gate:
                 ready = await adapter.warmup()
-                for i in range(self.config.warmup + self.config.samples):
+                for i in range(self.config.warmup + len(items)):
                     if self.cancelled:
                         break
                     sample = items[(i - self.config.warmup) % len(items)]

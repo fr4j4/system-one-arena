@@ -56,7 +56,7 @@ def test_tetris_lines_clear():
 @pytest.mark.parametrize("name", [x[0] for x in BUSINESS])
 async def test_all_business_scenarios_finish_without_exposing_labels(name):
     b = Business(name)
-    for _ in range(30):
+    for _ in range(len(b.items) * 4):
         if b.done:
             break
         state = b.observe()

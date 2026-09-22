@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { importCSV } from "./csv";
 import { Download, FileUp, Save } from "lucide-react";
 import { api, download, post, type Scenario } from "./types";
 export default function Datasets({
@@ -13,16 +14,31 @@ export default function Datasets({
   const [name, setName] = useState("tickets"),
     [text, setText] = useState(""),
     [notice, setNotice] = useState(""),
-    [saved, setSaved] = useState<any[]>([]);
+    [saved, setSaved] = useState<any[]>([]),
+    [busy, setBusy] = useState(false);
+  const revision = useRef(0);
   useEffect(() => {
     api<any[]>("/presets")
       .then((v) => setSaved(v.filter((p) => p.kind === "dataset")))
       .catch((e) => onError(String(e)));
   }, []);
   useEffect(() => {
+    const requestRevision = ++revision.current;
+    setBusy(true);
     api<any[]>("/fixtures/" + name)
-      .then((items) => setText(items.map((i) => JSON.stringify(i)).join("\n")))
-      .catch((e) => onError(String(e)));
+      .then((items) => {
+        if (requestRevision === revision.current)
+          setText(items.map((i) => JSON.stringify(i)).join("\n"));
+      })
+      .catch((e) => {
+        if (requestRevision === revision.current) onError(String(e));
+      })
+      .finally(() => {
+        if (requestRevision === revision.current) setBusy(false);
+      });
+    return () => {
+      revision.current++;
+    };
   }, [name]);
   const parse = () => {
     const items = text
@@ -68,7 +84,7 @@ export default function Datasets({
             permanecen en el evaluador.
           </p>
         </div>
-        <button className="primary" onClick={save}>
+        <button className="primary" onClick={save} disabled={busy}>
           <Save size={16} /> Guardar y usar
         </button>
       </div>
@@ -86,10 +102,10 @@ export default function Datasets({
           </select>
         </label>
         <label className="file-button">
-          <FileUp size={16} /> Importar JSONL
+          <FileUp size={16} /> Importar CSV / JSONL
           <input
             type="file"
-            accept=".jsonl,.json"
+            accept=".csv,.jsonl,.json"
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (f) {
@@ -97,16 +113,31 @@ export default function Datasets({
                   onError("El archivo supera 10 MB");
                   return;
                 }
-                const str = await f.text();
+                revision.current++;
+                setBusy(true);
                 try {
-                  const parsed = JSON.parse(str);
+                  const str = await f.text();
+                  const parsed = f.name.toLowerCase().endsWith(".csv")
+                    ? importCSV(str)
+                    : (() => {
+                        try {
+                          return JSON.parse(str);
+                        } catch {
+                          return str;
+                        }
+                      })();
                   setText(
                     Array.isArray(parsed)
                       ? parsed.map((v) => JSON.stringify(v)).join("\n")
                       : str,
                   );
-                } catch {
-                  setText(str);
+                  setNotice(
+                    "Archivo importado. Revisa el contenido y guarda para usarlo.",
+                  );
+                } catch (error) {
+                  onError(String(error));
+                } finally {
+                  setBusy(false);
                 }
               }
             }}
@@ -135,10 +166,13 @@ export default function Datasets({
               value=""
               onChange={(e) => {
                 const p = saved.find((p) => p.id === e.target.value);
-                if (p)
+                if (p) {
+                  revision.current++;
+                  setBusy(false);
                   setText(
                     p.value.map((v: any) => JSON.stringify(v)).join("\n"),
                   );
+                }
               }}
             >
               <option value="">Seleccionar…</option>
@@ -152,6 +186,18 @@ export default function Datasets({
         ) : null}
       </div>
       {notice ? <p className="notice">{notice}</p> : null}
+      <p className="sample-note">
+        Tickets, correo y spam: 240 casos sintéticos por dataset (24 familias ×
+        10 contextos). Las variantes no son observaciones independientes. Los
+        demás escenarios conservan sus ejemplos iniciales y admiten datasets
+        propios.
+      </p>
+      <p>
+        CSV: columnas <code>id,text,expected.department,expected.priority</code>
+        , o columnas <code>state</code> y <code>expected</code> con objetos
+        JSON. JSONL conserva además procedencia, dificultad y explicación de
+        referencia.
+      </p>
       <div className="dataset-layout">
         <div>
           <div className="editor-caption">
@@ -163,7 +209,11 @@ export default function Datasets({
             spellCheck={false}
             aria-label="Editor JSONL"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              revision.current++;
+              setBusy(false);
+              setText(e.target.value);
+            }}
           />
         </div>
         <aside className="explanation">

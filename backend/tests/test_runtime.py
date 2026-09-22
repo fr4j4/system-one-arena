@@ -64,7 +64,7 @@ async def test_business_flow_finishes_and_records_inputs(tmp_path):
     store = Store(tmp_path)
     store.start()
     run = Run(
-        RunConfig(scenario="tickets", budget_ms=2000, max_state_age_ms=5000),
+        RunConfig(scenario="tickets", sample_size=4, budget_ms=2000, max_state_age_ms=5000),
         ReferenceAdapter(),
         store,
         asyncio.Semaphore(1),
@@ -139,7 +139,10 @@ async def test_provider_gate_does_not_overlap_physical_calls_after_expiry(tmp_pa
     store = Store(tmp_path)
     store.start()
     run = Run(
-        RunConfig(scenario="tickets", budget_ms=10, max_seconds=1), adapter, store, asyncio.Semaphore(1)
+        RunConfig(scenario="tickets", request_timeout_ms=10, sample_size=4, max_seconds=1),
+        adapter,
+        store,
+        asyncio.Semaphore(1),
     )
     await run.start()
     await run.task

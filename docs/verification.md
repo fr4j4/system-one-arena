@@ -46,3 +46,13 @@ These are integration checks, **not** a statistically controlled Laya/Jev speed 
 User traces showed 218 completed Jev Tetris responses and zero applied actions: every response exceeded the original 100 ms budget (observed p50 284 ms). Raised the explicit UI and protocol defaults to a 1000 ms budget and 1500 ms maximum state age; custom stricter limits still expire normally. The live panel now explains deadline/age discards and displays the configured limits alongside observed p95.
 
 A regression test with 300 ms provider latency failed before the change and passes for Snake and Tetris afterward. All 68 backend tests pass. Real Jev smoke runs applied 5 Snake actions and 11 Tetris actions, with observed p50 around 302/317 ms respectively. These checks establish action delivery, not game-playing quality.
+
+## 2026-09-22: three scenario experiences and dataset results
+
+- 80 Python tests pass, including scenario-derived execution policy, slow turn/batch calls that must not inherit world deadlines, timeout/error rows that advance exactly once, normalization of evaluation speed, unique sample IDs, balanced/reproducible sampling, and corpus-family provenance.
+- Tickets, email and spam each contain 240 synthetic contextual compositions (24 families × 10 contexts). These are disclosed synthetic variants, not independent production observations. Other business scenarios retain starter datasets and accept imports through the same table/sampling workflow.
+- Tables retain all processed rows (25 per page), per-question labels/accuracy, technical errors, latency, reference alternatives and case metadata. A/B matches by stable source ID. Missing labels produce no accuracy claim.
+- CSV import supports quoted/multiline fields, JSON state/expected cells and expected.* columns. Request revision guards prevent late fixture loads from replacing imported or edited data.
+- Production TypeScript/Vite build, Ruff lint and formatting pass. The light results table was visually inspected against the existing Arena design.
+- All 9 browser tests pass: original game/step/history/graph/benchmark/mobile paths plus scenario-specific controls, A/B 100-case alignment and pagination, and CSV import with unlabeled-case filtering.
+- Isolated real Jev verification completed five tickets, five emails and five spam cases with zero technical errors and recorded per-case latencies. Observed provider p50 was approximately 283/286/361 ms respectively; these are integration smoke checks, not controlled quality/speed benchmarks. A separate UI smoke run processed 14 tickets before being stopped externally.

@@ -77,23 +77,29 @@ All are original simplified deterministic simulations. No ROMs, screenshots, vis
 
 Business scenarios: tickets, email, spam/phishing, moderation, event filters, hierarchical classification (tree/flat), incident prioritization and agent routing. A ninth scenario executes editable decision DAGs, with support/email/incident templates. Actions remain simulated.
 
-Synthetic Spanish/English fixtures can be inspected in Datasets, edited as JSONL, imported and saved. `state` goes to the model; `expected` stays in the evaluator. Multiple acceptable labels are supported. Fixtures are intentionally small smoke-test data, not production benchmarks.
+Tickets, email and spam/phishing each include 240 Spanish synthetic cases: 24 disclosed families × 10 contextual variants (negation, urgency, mixed intents, consent, quoted threats, ambiguous information). Each case carries source/version, family, difficulty and reference rationale. Contextual variants are **not independent real-world observations**; do not claim production accuracy from this corpus. Other scenarios retain small starter sets and support the same import/sampling/table workflow.
 
-## Live experiments
+Use 25, 100, 500 or all cases, capped by the selected dataset/filter without repetition. Random or category-balanced sampling is seeded; the run manifest records actual IDs, size, distribution and version. Import CSV (`id,text,expected.department,expected.priority`, or JSON `state`/`expected` columns), JSONL or JSON arrays. Only `state` goes to the model; labels and reference rationales remain in the evaluator.
 
-- **Real time:** the world does not wait. Initial decision frequency 10 Hz, budget 1000 ms, maximum state age 1500 ms. Slower providers will visibly miss deadlines. Increase those values intentionally or slow the world; every setting is recorded.
-- **Step mode:** click “Una decisión” to request one result and advance the world. Still enforces the selected budget.
-- **A/B:** choose a second provider in advanced options. Identical seed, independent trajectories; this is not a same-state accuracy comparison.
-- **Inspector:** exact input/schema, final probabilities, provider confidence, raw response, event timeline and measured durations. No simulated reasoning, internal attention maps or fake token streaming.
-- **Replay:** recorded snapshots/actions; no new model calls. Export full runs as JSONL.
+## Three execution experiences
 
-Separate measurements: provider p50/p95/p99, queue, synchronized local inference when available, acceptance-to-application, state age, deadline failures, throughput, and a browser paint/round-trip probe. A remote call's duration includes network. Missing internal timings remain null.
+- **Turns — Tic-tac-toe:** automatic play or a visible next-turn control, with optimal/random opponent. The board waits for a decision; elapsed clock time does not invalidate a turn. A 30-second technical timeout detects stalled calls. Pause/stop/restart remain available.
+- **Realtime — Snake, Pong, Tetris, fighting, Space Invaders:** continuous physics and latest-state inference. Play defaults to 0.5× speed in the UI; evaluation fixes speed at 1× on the server. Speed never adapts silently to a provider. Movement/held actions are interpreted by each game. Technical frequency, budget and state-age limits live in advanced controls only (10 Hz maximum, 1000/1500 ms by default).
+- **Datasets:** finite sample processing, one case at a time, no game clock, frequency throttle or simulation-duration cutoff. Each call uses a 30-second technical timeout; failures become rows and processing advances. Multi-question trees accumulate latency across calls and retain their path. Pause prevents new requests; stop prevents new requests and ignores any already-issued response.
+
+The primary dataset view is a paginated live table: input, each decision/expected label/probability, evaluation, latency, call count, route/output. Search, category/difficulty/error filters, sorting, case detail and CSV/JSONL exports operate over the full processed result set. History reconstructs tables from recorded events. Accuracy excludes technical failures and unlabeled cases, which are counted separately. Probabilities are displayed only when supplied; ordinal predictions round to the nearest level (ties to even), and booleans use 0.5.
+
+A/B dataset runs share source IDs, seed, sampling and order. A joined table highlights disagreements. Concurrent runs may contend for local resources; use isolated benchmarks for latency comparisons. Game A/B shares seed but trajectories diverge.
+
+The inspector remains available for exact requests, raw responses and events, but is collapsed for datasets. No fabricated internal reasoning or token streaming. Reference rationales are explicitly dataset annotations, not model explanations.
+
+![Dataset results](docs/screenshots/dataset-results.png)
 
 ## Benchmarks
 
 “Experimentos” offers:
 
-1. **Same states:** fixed corpus sent to providers sequentially, with 20 warmup calls and 500 measured decisions by default. Cache disabled. Game agreement compares against a named heuristic, not an optimal ground truth. Hierarchical corpus paths use the reference labels; evaluate independent episodes to measure compounding errors.
+1. **Same states:** fixed corpus sent to providers sequentially, with 20 warmup calls and up to 500 measured decisions by default. Dataset measurements stop at the available corpus rather than repeating cases; warmup calls may reuse inputs. Cache disabled. Game agreement compares against a named heuristic, not an optimal ground truth. Hierarchical corpus paths use the reference labels; evaluate independent episodes to measure compounding errors.
 2. **Independent episodes:** 30 matched seeds by default, 30 seconds each, preserving wall-clock deadlines. Reports score and per-run traces.
 
 Calls use real configured services and can incur API usage. Select counts before starting. Cancel stops after the currently executing physical call. Interactive runs and benchmarks are mutually exclusive so comparison is not accidentally contaminated by local contention.

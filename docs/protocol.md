@@ -28,9 +28,9 @@ Primitive mapping: `choice → choice`, `ordinal → score` (0…N−1), `boolea
 
 ## Lifecycle and backpressure
 
-`accepted → queued → started → completed → applied`, with `expired`, `rejected`, `failed`, and `finished`. `completed` may arrive after `expired`; it is recorded with `late=true` and never applied. One physical inference per run; the latest snapshot replaces intermediate observations while it is busy. No FIFO backlog of old game states. A provider semaphore bounds cross-run concurrency (Laya 1; HTTP 4). Queue waits count against the deadline. New decisions are sampled at the configured frequency.
+`accepted → queued → started → completed → applied`, with `expired`, `rejected`, `failed`, and `finished`. `completed` may arrive after `expired`; it is recorded with `late=true` and never applied. One physical inference per run; the latest snapshot replaces intermediate observations while it is busy. No FIFO backlog of old game states. A provider semaphore bounds cross-run concurrency (Laya 1; HTTP 4). Queue waits count against the deadline. Only continuous games are sampled at a configured maximum frequency. Turns and batches dispatch when their prior decision has completed and any authoritative move is acknowledged.
 
-A CPU/CUDA call cannot be forcibly interrupted safely. On a deadline, record expiration immediately but wait for the physical call to finish before issuing another. Pause/stop suppress application. Every application revalidates episode, request uniqueness, deadline, observation age and current legal action. Tic-tac-toe additionally requires exact state sequence. Continuous games may apply a still-fresh action to a later state, and report its age.
+A CPU/CUDA call cannot be forcibly interrupted safely. On a deadline, record expiration immediately but wait for the physical call to finish before issuing another. Pause/stop suppress application and new queries; stop signals the simulation process immediately. A request already sent cannot be undone. Every application revalidates episode, request uniqueness, deadline, observation age and current legal action. Tic-tac-toe additionally requires exact state sequence. Continuous games may apply a still-fresh action to a later state, and report its age.
 
 World stepping is 60 Hz in an independent spawned process. States stream at up to 20 Hz. UI paints separately; continuous coordinates interpolate across snapshots. Step mode advances 12 physics ticks per requested decision. Physics speed and decision frequency are independent and stored in the manifest. Late-action behavior: Snake keeps heading; Pong/fighting/invaders go neutral; Tetris keeps gravity; tic-tac-toe waits.
 
@@ -53,3 +53,12 @@ Monotonic clocks measure local intervals. Simulation and coordinator processes s
 - `POST /api/evaluate`: threshold evaluation and an explicit exploratory temperature transform
 
 OpenAPI/interactive reference: `/docs`. Everything is single-user and intended for loopback access. No wildcard CORS. Bind publicly only behind an authenticated reverse proxy and TLS.
+
+
+## Scenario policy and samples
+
+`/scenarios` and run summaries expose `execution` (`turns`, `realtime`, `batch`). It is derived from scenario ID. Run construction normalizes non-turn modes to automatic processing and fixes continuous evaluation speed at 1×. `request_timeout_ms` (default 30000) controls turn/batch technical timeouts; their observation age is not a realtime deadline. `budget_ms`/`max_state_age_ms` apply to continuous worlds only.
+
+`sample_size` (default 25, null = all), `sampling` (`random`/`balanced`), `difficulty` and `seed` select a finite dataset without replacement. Summaries include `sample`: requested/effective size, filtered availability, ordered IDs, categories and corpus versions. Built-in synthetic corpora disclose families and variants; imported cases require unique string IDs or receive sequential IDs. All sampled IDs persist in the manifest.
+
+`applied` includes `row` only on completing a case; `case_failed` includes a failed row and advances to the next case. Rows retain status, error, input, expected labels, answers, accumulated provider-call latency, call count, metadata, path and terminal output. Failed rows do not contribute to quality metrics. Run views include all processed rows; the UI paginates 25 per page. `/events` remains the durable, paginated source after restart. Batch processing is not limited by game duration.
